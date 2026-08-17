@@ -166,10 +166,18 @@ export function createLiquidStretch(host: StretchHost): LiquidStretch {
       tl.to(host.auxTrio(target), { x: 0, y: 0, duration: 0.5, ease: SPRING, overwrite: "auto" }, 0);
     } else {
       const stretchBits = host.triggerStretchBits();
-      tl.to(stretchBits, { x: 0, y: 0, duration: 0.5, ease: SPRING, overwrite: "auto" }, 0);
+      /* Rotation rides the SAME spring home as the position. The circle
+         itself hides its rotation, but its box-shadow does not — the shadow's
+         offset lives in the element's local frame, so a held rotation makes
+         it point sideways, and zeroing it with a set() after the handoff made
+         the shadow visibly JUMP as the crisp body took over. Springing it
+         home lands it (shadow and all) before anyone can see a seam. */
+      tl.to(
+        stretchBits,
+        { x: 0, y: 0, rotation: 0, duration: 0.5, ease: SPRING, overwrite: "auto" },
+        0,
+      );
       tl.to(host.triggerIcon(), { x: 0, y: 0, duration: 0.5, ease: SPRING }, 0);
-      /* A circle at rest hides its rotation — zero it silently. */
-      tl.set(stretchBits, { rotation: 0 }, 0.55);
       if (wasStretched) {
         tl.to(
           host.triggerBits(),

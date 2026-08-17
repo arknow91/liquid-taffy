@@ -9,7 +9,7 @@ import {
 import gsap from "gsap";
 import { CustomEase } from "gsap/CustomEase";
 
-import { FileIcon, ImageIcon, MusicIcon, PlusIcon } from "../LiquidMenu/icons";
+import { CircleIcon, PlusIcon, SquareIcon, TriangleIcon } from "../LiquidMenu/icons";
 import { GOO_RIM_THRESHOLDS, gooThreshold, setGooBlur } from "../liquid/goo";
 import { HOUSE_SPRING_POINTS, POP_SPRING_POINTS, springEase } from "../liquid/springs";
 import { squirclePath } from "../liquid/squircle";
@@ -68,9 +68,9 @@ const TRIGGER_CX = TRIGGER_X + BUTTON_SIZE / 2;
 const TRIGGER_CY = TRIGGER_Y + BUTTON_SIZE / 2;
 
 const ITEMS = [
-  { id: "add-image", label: "Attach image", Icon: ImageIcon },
-  { id: "add-audio", label: "Attach audio", Icon: MusicIcon },
-  { id: "add-file", label: "Attach file", Icon: FileIcon },
+  { id: "add-circle", label: "Circle", Icon: CircleIcon },
+  { id: "add-square", label: "Square", Icon: SquareIcon },
+  { id: "add-triangle", label: "Triangle", Icon: TriangleIcon },
 ] as const;
 
 const PANEL_RADIUS = 16;
@@ -558,7 +558,7 @@ export function LiquidAdd() {
         ref={panelRef}
         className={styles.panel}
         role="menu"
-        aria-label="Attach menu"
+        aria-label="Shapes menu"
         inert={!isOpen}
         onPointerDown={handlePanelPointerDown}
         onPointerMove={handleGrabPointerMove}
@@ -589,7 +589,7 @@ export function LiquidAdd() {
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-controls={menuId}
-        aria-label="Attach"
+        aria-label="Add shape"
         onClick={toggleMenu}
         onPointerDown={handleTriggerPointerDown}
         onPointerMove={handleGrabPointerMove}

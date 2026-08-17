@@ -10,7 +10,7 @@ import {
 import gsap from "gsap";
 import { CustomEase } from "gsap/CustomEase";
 
-import { FileIcon, ImageIcon, MusicIcon, PlusIcon } from "./icons";
+import { CircleIcon, PlusIcon, SquareIcon, TriangleIcon } from "./icons";
 import { GOO_RIM_THRESHOLDS, gooThreshold, setGooBlur } from "../liquid/goo";
 import { HOUSE_SPRING_POINTS, POP_SPRING_POINTS, springEase } from "../liquid/springs";
 import {
@@ -37,9 +37,9 @@ const BUTTON_SIZE = 32;
    one straight up, two flanking at 45°-ish. Rest tilt leans each drop toward
    its flight direction so the pop also swings it upright. */
 const SATELLITES = [
-  { id: "attach-image", label: "Attach image", Icon: ImageIcon, dx: -48, dy: -20, restRotation: -12 },
-  { id: "attach-audio", label: "Attach audio", Icon: MusicIcon, dx: 0, dy: -48, restRotation: 6 },
-  { id: "attach-file", label: "Attach file", Icon: FileIcon, dx: 48, dy: -20, restRotation: 12 },
+  { id: "shape-circle", label: "Circle", Icon: CircleIcon, dx: -48, dy: -20, restRotation: -12 },
+  { id: "shape-square", label: "Square", Icon: SquareIcon, dx: 0, dy: -48, restRotation: 6 },
+  { id: "shape-triangle", label: "Triangle", Icon: TriangleIcon, dx: 48, dy: -20, restRotation: 12 },
 ] as const;
 
 /* Resting scale: each shrunk satellite must hide entirely inside the 16px-
@@ -674,7 +674,7 @@ export function LiquidMenu() {
       </svg>
 
       {/* Layer 3: icons and hit areas, flying above the liquid. */}
-      <div id={menuId} className={styles.menuLayer} role="menu" aria-label="Attach menu" inert={!isOpen}>
+      <div id={menuId} className={styles.menuLayer} role="menu" aria-label="Shapes menu" inert={!isOpen}>
         {SATELLITES.map((satellite, index) => (
           <button
             key={satellite.id}
