@@ -1,0 +1,42 @@
+/* The three-on-one-view stage: the surface centred in the viewport, the pill
+   row pinned along its bottom edge as a bar. */
+
+.shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-family);
+}
+
+/* A fixed box, so switching surfaces never moves anything: each of the three
+   opens to a different size — satellites fanning ±64px sideways, panels
+   growing 118px up — and the box is cut to hold the largest of them with the
+   32px trigger sitting at its foot, where all three anchor. */
+.stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 340px;
+  height: 200px;
+  padding-bottom: 84px;
+}
+
+/* The bar: fixed to the viewport's bottom edge, not to the stage — it stays
+   put whatever the surface above it is doing, and the tabs stay reachable at
+   any window height. Centred by its own transform rather than by a full-width
+   row, so the row keeps its natural width and the travelling pill's
+   offsetLeft maths is untouched. */
+.bar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  padding: 6px;
+  z-index: 2;
+}

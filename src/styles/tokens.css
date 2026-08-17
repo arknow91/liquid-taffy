@@ -1,0 +1,35 @@
+/* Only what the liquid family and its navigation actually read. Every colour
+   the liquid surfaces themselves wear (rim, fill, icon, track, knob) is a
+   LOCAL custom property on the component's own root — see each module.css —
+   so a component stays self-contained when it is lifted out of here. */
+:root {
+  /* Stage — the Figma frame the whole liquid family sits on. A step off white,
+     so the drops read through their rim and shadow. */
+  --color-viewport-bg: #f9f9f9;
+
+  /* Navigation text, tuned for that light stage. */
+  --color-text-primary: #1f2029;
+  --color-text-secondary: #6b6c78;
+  --color-text-muted: #c4c4cd;
+
+  /* Focus ring */
+  --color-focus-ring: #1172fa;
+
+  /* Tooltip — the dark pill the liquid menu's satellites raise. */
+  --color-tooltip-bg: #0b0b0c;
+  --color-tooltip-text: #ffffff;
+
+  /* Motion */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Spacing */
+  --space-lg: 16px;
+
+  /* Typography */
+  --font-family: "Inter", system-ui, sans-serif;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --line-height-sm: 14px;
+  --line-height-md: 16px;
+}

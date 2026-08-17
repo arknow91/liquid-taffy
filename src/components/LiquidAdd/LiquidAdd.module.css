@@ -1,0 +1,170 @@
+/* Liquid add — Figma "Admin" 9672:1879. A plus circle that pours a dropdown
+   out of itself, CENTERED above the button. Same three-layer liquid engine as
+   the rest of the family: crisp bodies below, the goo while anything moves,
+   icons and rows on top. */
+
+.anchor {
+  --liquid-surface: #ffffff;
+  --liquid-rim: #dadada;
+  --liquid-icon: #252731;
+  --liquid-text: #1f2029;
+
+  position: relative;
+  width: 32px;
+  height: 32px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bodies {
+  position: absolute;
+  inset: 0;
+}
+
+.triggerBody {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--liquid-surface);
+  border: 1px solid var(--liquid-rim);
+  box-shadow: 0 3px 6.25px rgb(0 0 0 / 8%);
+  will-change: transform;
+}
+
+/* Dropdown body centered on the button, 14px above it. An SVG so the shape is
+   a true Apple squircle — border as stroke, shadow as a drop-shadow. */
+.panelBody {
+  position: absolute;
+  left: -54.5px; /* centers the 141px panel on the 32px button */
+  bottom: 46px; /* button 32 + 14 gap */
+  width: 141px;
+  height: 104px; /* 2×7 padding + 3 rows × 30 */
+  overflow: visible;
+  filter: drop-shadow(0 3px 6.25px rgb(0 0 0 / 8%));
+  will-change: transform;
+}
+
+.panelBodyShape {
+  fill: var(--liquid-surface);
+  stroke: var(--liquid-rim);
+  stroke-width: 1;
+}
+
+/* The goo canvas — headroom for the panel, the grab finger and the blur. */
+.goo {
+  position: absolute;
+  right: -144px; /* canvas 320 minus the button's right edge at x=176 */
+  /* 72px below the button: a full-length finger pulled down, its head and the
+     blur's tail all have to land inside the canvas or they are cut off. */
+  bottom: -72px;
+  width: 320px;
+  height: 308px;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.blob {
+  fill: var(--liquid-surface);
+  will-change: transform;
+}
+
+/* Rows above the goo, sharing the panel's rect and transforms. */
+.panel {
+  position: absolute;
+  left: -54.5px;
+  bottom: 46px;
+  width: 141px;
+  height: 104px;
+  padding: 7px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--liquid-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Squircle hover tint (127×30, r9) — the same continuous-corner curve as the
+   panel, faded via opacity so the 160ms hover ease survives. */
+.item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 127 30'%3E%3Cpath fill='%23000000' fill-opacity='0.045' d='M 13.758 0 L 113.242 0 C 117.204 0 119.184 0 121.317 0.674 C 123.645 1.522 125.478 3.355 126.326 5.683 C 127 7.816 127 9.796 127 13.758 L 127 16.242 C 127 20.204 127 22.184 126.326 24.317 C 125.478 26.645 123.645 28.478 121.317 29.326 C 119.184 30 117.204 30 113.242 30 L 13.758 30 C 9.796 30 7.816 30 5.683 29.326 C 3.355 28.478 1.522 26.645 0.674 24.317 C 0 22.184 0 20.204 0 16.242 L 0 13.758 C 0 9.796 0 7.816 0.674 5.683 C 1.522 3.355 3.355 1.522 5.683 0.674 C 7.816 0 9.796 0 13.758 0 Z'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  opacity: 0;
+  transition: opacity 160ms var(--ease-out-strong);
+  pointer-events: none;
+}
+
+.item:hover::before {
+  opacity: 1;
+}
+
+.itemIcon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--liquid-icon);
+}
+
+/* Transparent hit area over the circle; the icon rides above the goo. */
+.trigger {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: none;
+  color: var(--liquid-icon);
+  transition:
+    color 160ms var(--ease-out-strong),
+    background-color 160ms var(--ease-out-strong);
+}
+
+.trigger:hover {
+  color: #000000;
+  background: rgb(0 0 0 / 4.5%);
+}
+
+/* Whenever the liquid owns the picture (an open/close flight or a grab), the
+   button's crisp hover disc steps aside: painted over the moving goo it reads
+   as a second border, and during a grab it would double the hover tint the
+   liquid itself already wears. */
+.anchor[data-liquid] .trigger:hover,
+.anchor[data-liquid] .trigger {
+  background: none;
+}
+
+.triggerIcon {
+  display: flex;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item::before {
+    transition: none;
+  }
+}

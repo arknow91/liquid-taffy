@@ -1,0 +1,79 @@
+/* The pill row. On the banners it rode a #0b0b0c stage and wore dark glass;
+   here it sits on the liquid family's Figma-frame grey, so it wears the same
+   surface the drops do — white, the family's 1px #dadada rim, the family's
+   shadow — and the labels ink dark. Every colour is a local custom property on
+   this root, so the row is self-contained when it is lifted out. */
+
+.tabs {
+  --tabs-surface: #ffffff;
+  --tabs-rim: #dadada;
+  --tabs-label: #6b6c78;
+  --tabs-label-active: #1f2029;
+
+  /* Relative, because the travelling pill positions itself against this row. */
+  position: relative;
+  display: flex;
+  gap: 4px;
+  font-family: var(--font-family);
+}
+
+/* One shared pill UNDER the labels; GSAP carries it. The buttons only change
+   text colour. */
+.pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  height: 28px;
+  border-radius: 62px;
+  background: var(--tabs-surface);
+  /* Rim as a spread shadow rather than a border: a border would be part of the
+     pill's layout box, and this element's width is tweened every frame. */
+  box-shadow:
+    0 0 0 1px var(--tabs-rim),
+    0 3px 6.25px rgb(0 0 0 / 8%);
+  pointer-events: none;
+  /* Transform only. Width is layout — the compositor cannot hold it, so naming
+     it here buys nothing and keeps a layer primed for a change that reflows
+     anyway. */
+  will-change: transform;
+}
+
+.tab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 62px;
+  background: none;
+  font-size: var(--font-size-md);
+  /* Regular: a quiet row of switches under the stage, not a heading competing
+     with what it is switching. */
+  font-weight: 400;
+  line-height: var(--line-height-md);
+  color: var(--tabs-label);
+  white-space: nowrap;
+  transition:
+    color 160ms var(--ease-out-strong),
+    transform 400ms var(--ease-out-strong);
+}
+
+.tab:hover:not(.tabActive),
+.tab:focus-visible:not(.tabActive) {
+  color: var(--tabs-label-active);
+}
+
+.tab:active {
+  transform: scale(0.95);
+  transition: transform 100ms var(--ease-out-strong);
+}
+
+/* Colour only. The weight stays at the row's regular 400 — a heavier active
+   label re-measures the tab, and the pill is tweening to that width while the
+   text is still changing under it. */
+.tabActive {
+  color: var(--tabs-label-active);
+}

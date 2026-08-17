@@ -1,0 +1,17 @@
+/* One stage for the whole family: every liquid component sits on the same
+   Figma-frame grey, so switching views never moves the backdrop. */
+.viewport {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  background: var(--color-viewport-bg);
+  padding: var(--space-lg);
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

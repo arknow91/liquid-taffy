@@ -1,0 +1,211 @@
+/* Liquid speed-dial — Figma "Admin" 9668:1727 (rev 9669).
+   Three layers, bottom to top:
+   1. .bodies — the real buttons' bodies: CSS circles with the true 1px border
+      and shadow. These never change; they ARE the border, always.
+   2. .goo — the liquid: blurred/thresholded clones of the same circles whose
+      filter-drawn rim sits exactly where the CSS borders sit. While anything
+      moves this layer is opaque and simply covers the bodies, so the one
+      visible outline flows with the necks; at rest it fades away and reveals
+      the identical crisp picture underneath. No border is ever swapped.
+   3. .menuLayer / .trigger — transparent hit areas carrying only the icons,
+      so the glyphs fly above the liquid. */
+
+.anchor {
+  --liquid-surface: #ffffff;
+  --liquid-rim: #dadada;
+  --liquid-icon: #252731;
+
+  position: relative;
+  width: 32px;
+  height: 32px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bodies {
+  position: absolute;
+  inset: 0;
+}
+
+.triggerBody {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--liquid-surface);
+  border: 1px solid var(--liquid-rim);
+  box-shadow: 0 3px 6.25px rgb(0 0 0 / 8%);
+  will-change: transform;
+}
+
+/* Position comes inline from the SATELLITES config. */
+.satelliteBody {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--liquid-surface);
+  border: 1px solid var(--liquid-rim);
+  box-shadow: 0 3px 6.25px rgb(0 0 0 / 8%);
+  will-change: transform;
+}
+
+/* The goo canvas: a real <svg> (Safari won't reliably repaint a CSS
+   filter: url() on an HTML element with animating children), drawn big
+   enough to hold the satellite fan (±48px sideways, 48px up from the trigger
+   center) plus headroom for the blur. The filter lives on a <g> inside. */
+.goo {
+  position: absolute;
+  right: -108px;
+  /* 72px below the button: a full-length finger pulled down, its head and the
+     blur's tail all have to land inside the canvas or they are cut off. */
+  bottom: -72px;
+  width: 248px; /* 108 + 32 + 108 */
+  height: 228px; /* 72 + 32 + 124 */
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Every liquid shape: trigger circle, satellite circles, and the grab chain —
+   a head plus trailing beads that keep the pulled finger in one piece. */
+.blob {
+  fill: var(--liquid-surface);
+  will-change: transform;
+}
+
+.menuLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.trigger {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--liquid-icon);
+  transition:
+    color 160ms var(--ease-out-strong),
+    background-color 160ms var(--ease-out-strong);
+}
+
+.trigger:hover {
+  color: #000000;
+  background: rgb(0 0 0 / 4.5%);
+}
+
+.triggerIcon {
+  display: flex;
+  will-change: transform;
+}
+
+/* Transparent hit areas riding the same tweens as their bodies and blobs —
+   they carry the icon (above the goo) and the accessibility. */
+.satellite {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--liquid-icon);
+  will-change: transform;
+  transition:
+    color 160ms var(--ease-out-strong),
+    background-color 160ms var(--ease-out-strong);
+}
+
+.satellite:hover {
+  color: #000000;
+  background: rgb(0 0 0 / 4.5%);
+}
+
+/* Whenever the liquid owns the picture (open/close flight or a grab), the
+   buttons' crisp hover discs step aside: painted over the moving goo they
+   read as a second border, and during a grab they'd double the hover tint
+   the liquid itself already wears. */
+.anchor[data-liquid] .satellite:hover,
+.anchor[data-liquid] .satellite,
+.anchor[data-liquid] .trigger:hover,
+.anchor[data-liquid] .trigger {
+  background: none;
+}
+
+/* Tooltip — the same pill, spring and authored exit as the avatar dropdown's
+   "Click and hold": pops in on the ringing spring, shrinks away with the fade
+   trailing the scale so the collapse is watched, not dissolved through. */
+.tooltipAnchor {
+  --tooltip-pre-scale: 0.8;
+  --tooltip-exit-duration: 160ms;
+  --tooltip-exit-scale: 0.72;
+  --tooltip-exit-ease: cubic-bezier(0.42, 0, 0.58, 1);
+  --tooltip-exit-fade: cubic-bezier(0.55, 0, 0.9, 0.5);
+  --tooltip-spring-dur: 400ms;
+  --tooltip-spring: linear(
+    0 0%, 0.0308 2.8%, 0.113 5.6%, 0.2314 8.3%, 0.3717 11.1%, 0.5211 13.9%,
+    0.669 16.7%, 0.8068 19.4%, 0.9284 22.2%, 1.0297 25%, 1.1089 27.8%,
+    1.1657 30.6%, 1.2012 33.3%, 1.2176 36.1%, 1.2177 38.9%, 1.2048 41.7%,
+    1.1822 44.4%, 1.1534 47.2%, 1.1211 50%, 1.0881 52.8%, 1.0564 55.6%,
+    1.0277 58.3%, 1.003 61.1%, 0.9831 63.9%, 0.9681 66.7%, 0.958 69.4%,
+    0.9523 72.2%, 0.9505 75%, 0.952 77.8%, 0.9559 80.6%, 0.9616 83.3%,
+    0.9683 86.1%, 0.9755 88.9%, 0.9827 91.7%, 0.9893 94.4%, 0.9951 97.2%, 1 100%
+  );
+
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%) scale(var(--tooltip-pre-scale));
+  transform-origin: 50% 100%;
+  opacity: 1;
+  pointer-events: none;
+  transition: transform var(--tooltip-spring-dur) var(--tooltip-spring);
+}
+
+.tooltip {
+  display: block;
+  padding: 4px 8px;
+  border-radius: 33px;
+  background: var(--color-tooltip-bg);
+  color: var(--color-tooltip-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  font-weight: 400;
+  line-height: var(--line-height-md);
+  white-space: nowrap;
+}
+
+.tooltipVisible {
+  transform: translateX(-50%) scale(1);
+}
+
+.tooltipHiding {
+  opacity: 0;
+  transform: translateX(-50%) scale(var(--tooltip-exit-scale));
+  transition:
+    transform var(--tooltip-exit-duration) var(--tooltip-exit-ease),
+    opacity var(--tooltip-exit-duration) var(--tooltip-exit-fade);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .satellite,
+  .trigger,
+  .tooltipAnchor,
+  .tooltipHiding {
+    transition: none;
+  }
+}
