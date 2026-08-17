@@ -10,9 +10,8 @@ when you let go.
 This is a reference implementation, not a package. It exists so you can read the source
 and see exactly how a production-quality gooey interaction is put together: the SVG
 filter, the border trick, the spring choreography, and the shared grab gesture.
-A sibling of [liquid-gooey](https://github.com/Jakubantalik/Libraries/tree/main/packages/liquid-gooey),
-built around a different question: not *"how do surfaces melt into each other"* but
-*"how does one surface feel like it has a body"*.
+Everything here is built around one question — not *"how do surfaces melt into each
+other"* but *"how does one surface feel like it has a body"*.
 
 ## The three interactions
 
