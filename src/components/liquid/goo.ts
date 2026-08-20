@@ -7,7 +7,9 @@
    moment anything moves. Each working blur therefore carries its own pair,
    solved by rasterizing the exact filter over a 32px disc and integrating the
    rim's ink, so that at EVERY σ the rim's outer edge lands on the CSS
-   border's outer edge (r=16) and its weight equals 1px of #dadada.
+   border's outer edge (r=16) and its weight equals 1px of the frame's own
+   rim colour (--liquid-rim; the solve was run on the light frame's #dadada,
+   and holds for the dark frame's solid because the two carry the same alpha).
    One border, whatever the liquid does. */
 
 import gsap from "gsap";

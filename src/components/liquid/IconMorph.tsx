@@ -23,7 +23,7 @@ import gsap from "gsap";
 
 import { ICON_PATHS } from "../LiquidMenu/icons";
 import { POP_SPRING_POINTS, springEase } from "./springs";
-import { prefersReducedMotion } from "./stretch";
+import { prefersReducedMotion } from "./motion";
 
 const POP = springEase("liquidIconPop", POP_SPRING_POINTS);
 

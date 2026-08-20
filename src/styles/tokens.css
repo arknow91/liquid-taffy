@@ -1,32 +1,81 @@
-/* Only what the liquid family and its navigation actually read. Every colour
-   the liquid surfaces themselves wear (rim, fill, icon, track, knob) is a
-   LOCAL custom property on the component's own root — see each module.css —
-   so a component stays self-contained when it is lifted out of here. */
+/* ONE palette for the whole project — both frames, in one file.
+
+   Light lives under :root, dark under [data-theme="dark"], which the app
+   writes on the viewport (and each liquid surface repeats on its own root, so
+   a component still knows its frame when it is lifted out of here). Every
+   colour either frame wears is declared HERE and nowhere else: a component
+   stylesheet READS these, it never declares a colour of its own, so the two
+   frames cannot drift apart the way three hand-copied palettes did.
+
+   The frame is a value in TypeScript too — see components/liquid/theme.ts:
+   the same two words, one type, one source of truth. */
 :root {
-  /* Stage — the Figma frame the whole liquid family sits on. A step off white,
-     so the drops read through their rim and shadow. */
+  /* ── The stage ──────────────────────────────────────────────────────────
+     The Figma frame the whole liquid family sits on. A step off white, so the
+     drops read through their rim and shadow. */
   --color-viewport-bg: #f9f9f9;
 
-  /* Navigation text, tuned for that light stage. */
+  /* ── Ink ─────────────────────────────────────────────────────────────── */
   --color-text-primary: #1f2029;
   --color-text-secondary: #6b6c78;
   --color-text-muted: #c4c4cd;
 
-  /* Focus ring */
   --color-focus-ring: #1172fa;
 
-  /* Tooltip — the dark pill the liquid menu's satellites raise. */
+  /* The pill the speed dial's satellites raise: dark on the light stage, and
+     it flips whole on the dark one. */
   --color-tooltip-bg: #0b0b0c;
   --color-tooltip-text: #ffffff;
 
-  /* Motion */
-  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  /* ── The liquid family ──────────────────────────────────────────────────
+     What every liquid surface wears: the drop's face and rim, the glyph, the
+     row ink. The speed dial, both dropdowns and the pill row all read these,
+     so "the family's white" is one value, not four. */
+  --liquid-surface: #ffffff;
+  --liquid-rim: #dadada;
+  --liquid-icon: #252731;
+  --liquid-icon-hover: #000000;
+  --liquid-text: #1f2029;
 
-  /* Spacing */
+  /* Three tints, three jobs. The dial's is a breath — the hover only nudges
+     the face off its resting shade, it never reads as a new surface. The
+     dropdowns' trigger wears the same grey their rows do, and the rows carry
+     both the travelling hover and the selection wash. The two button tints
+     differ only on THIS frame; on the dark one they are the same value. */
+  --liquid-hover-tint: rgb(0 0 0 / 2.5%);
+  --liquid-panel-hover-tint: rgb(0 0 0 / 4.5%);
+  --liquid-item-tint: rgb(0 0 0 / 4.5%);
+
+  /* The seam's DEFAULT colour only — the first paint a joint wears for the
+     frame or two before the engine hands it the touched row's own hue. The
+     motif hues themselves are TypeScript's (components/liquid/hues.ts): they
+     are read by the goo, the glyphs and the burst, not only by CSS. */
+  --liquid-seam: #785dd6;
+
+  /* ONE shadow, written twice — and the two syntaxes do NOT agree on their
+     blur number. box-shadow's blur is 2σ; the blur in filter: drop-shadow()
+     IS σ. Handing both the Figma number gave the liquid a shadow twice as
+     wide as the resting buttons', so the moment the goo took the picture over
+     the drop bloomed a second, softer halo. The goo's blur is therefore HALF,
+     and both are composed here from the same three values so they cannot
+     drift again. */
+  --liquid-shadow-y: 3px;
+  --liquid-shadow-blur: 6.25px;
+  --liquid-shadow-color: rgb(0 0 0 / 8%);
+  --liquid-shadow: 0 var(--liquid-shadow-y) var(--liquid-shadow-blur) var(--liquid-shadow-color);
+  --liquid-goo-shadow: drop-shadow(
+    0 var(--liquid-shadow-y) calc(var(--liquid-shadow-blur) / 2) var(--liquid-shadow-color)
+  );
+
+  /* ── Motion ─────────────────────────────────────────────────────────── */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  /* The back-out the icon morph and the selection-wash radii ring on. */
+  --ease-back-out: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Spacing ────────────────────────────────────────────────────────── */
   --space-lg: 16px;
 
-  /* Typography */
+  /* ── Typography ─────────────────────────────────────────────────────── */
   --font-family: "Inter", system-ui, sans-serif;
   --font-size-sm: 12px;
   --font-size-md: 13px;
@@ -34,13 +83,45 @@
   --line-height-md: 16px;
 }
 
-/* The dark stage — Figma "Admin" 9691:1764. Set on the viewport, so the frame
-   grey and the navigation ink flip together with the component standing on it;
-   the liquid surfaces keep carrying their own colours locally. */
+/* The dark frame — Figma "Admin" 9691:1764. Only what CHANGES is listed: the
+   stage grey, the ink, and the drops' own colours. Everything else above —
+   geometry, motion, type — is the same on both frames by construction. */
 [data-theme="dark"] {
   --color-viewport-bg: #212326;
 
   --color-text-primary: #ffffff;
   --color-text-secondary: rgb(255 255 255 / 56%);
   --color-text-muted: rgb(255 255 255 / 24%);
+
+  /* The tooltip flips whole: white pill, near-black ink. */
+  --color-tooltip-bg: #ffffff;
+  --color-tooltip-text: #0b0b0c;
+
+  /* The drops wear the stage's own grey, and the rim is a SOLID: the goo
+     draws its border by flooding one flat colour into the sliver between two
+     contours, so a translucent rim would tint whatever the liquid is flying
+     over and double against the crisp border beneath it. #2f3235 is the
+     Figma 6%-white stroke already composited over #212326 — one border,
+     whatever the liquid does. */
+  --liquid-surface: #212326;
+  --liquid-rim: #2f3235;
+  --liquid-icon: #ffffff;
+  --liquid-icon-hover: #ffffff;
+  --liquid-text: #ffffff;
+
+  /* 2% white over the drop's face lands on ~#272a2d — the faintest lift, a
+     glow rather than a wash. The rows keep the fuller 4.5%. */
+  --liquid-hover-tint: rgb(255 255 255 / 2%);
+  --liquid-panel-hover-tint: rgb(255 255 255 / 2%);
+  --liquid-item-tint: rgb(255 255 255 / 4.5%);
+
+  /* Lifted for the dark frame — the family's own lighter violet. */
+  --liquid-seam: #8a68ff;
+
+  /* No shadow on the dark frame: a black shadow on a near-black stage only
+     muddies the ground under the drops. Both liquid layers compose their
+     shadow from these, so none here means none ever. A zero box-shadow
+     rather than `none`, because it lives inside a composed shadow list. */
+  --liquid-shadow: 0 0 0 rgb(0 0 0 / 0%);
+  --liquid-goo-shadow: none;
 }

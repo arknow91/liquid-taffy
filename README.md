@@ -46,6 +46,11 @@ four and the pad's glyphs take a bow from behind the panel.
 The speed dial's satellites sit in the pad's own compass — square left, triangle up,
 circle right, the cross in the middle as the trigger.
 
+The frame itself is one thing kept in two halves that cannot disagree: every colour
+either frame wears lives in `src/styles/tokens.css`, and the frame as a *value* lives in
+`src/components/liquid/theme.ts`. No component stylesheet names a colour and no
+component takes a `theme` prop — see [One palette, one word](#one-palette-one-word).
+
 ## Run it
 
 ```bash
@@ -176,9 +181,47 @@ A frame is described as **multipliers** on that shape, never a second set of num
 the two rooms cannot drift apart. Each of the dial's drops speaks in its own pitch, so a
 contact tells you *which* contact it is without looking.
 
+### One palette, one word
+
+Light and dark used to be four things: a `"light" | "dark"` alias re-declared in every
+component, a prop threaded down through two stages, a ref copied into each surface so
+long-lived callbacks could ask which frame they were speaking in, and a palette
+hand-copied into four stylesheets. Copies drift — two of those stylesheets had already
+landed a percent apart on the same hover tint.
+
+They are one thing now:
+
+- **The colours** are `styles/tokens.css`, and only there: light under `:root`, dark
+  under `[data-theme="dark"]`, which the app writes on the viewport (each liquid surface
+  repeats it on its own root, so a component still knows its frame when it is lifted
+  out). A component stylesheet reads; it never declares.
+- **The value** is `liquid/theme.ts`: one `LiquidTheme` type and one context. `App`
+  provides it once, and anything that needs the frame in TypeScript — the motif hues,
+  the voice's two rooms, the burst — asks `useLiquidTheme()`. Nothing is threaded
+  through props, so nothing can forget to pass it on. Standing a surface on the other
+  frame is one line, anywhere in the tree:
+
+  ```tsx
+  <LiquidThemeProvider value="dark"><LiquidMenu /></LiquidThemeProvider>
+  ```
+
+What stays in TypeScript rather than CSS is what more than CSS reads. `liquid/hues.ts`
+holds the motif — one hue per glyph per frame — because the joint's gradient, a glyph's
+glow and the burst all need those values in JS, and with them the rule that makes the
+light frame monochrome: there `motifHue` returns `null`, and every consumer falls back
+to its own ink. One function, so the two frames can never drift.
+
+The same tidying reached the two dropdowns' stylesheets. Once neither of them named a
+colour, they were the same file twice over — so the surface they share (bodies, goo,
+seam, rows, wash, glyph, trigger) is now `liquid/dropdown.module.css`, and each variant
+composes it and adds the one thing that makes it itself: where its panel sits, 14px above
+the button or exactly on it.
+
 ## Project structure
 
 ```
+src/styles/
+  tokens.css          THE palette — both frames; nothing else declares a colour
 src/components/
   ThemeStage/         the two-frame stage: the switch, and the frame swap
   InteractionStage/   the three surfaces and the pill switcher
@@ -187,6 +230,7 @@ src/components/
   LiquidMenu/         speed dial (+ shared icons)
   PillTabs/           the travelling pill, used by both switch rows
   liquid/
+    theme.ts          THE frame, as a value: one type, one context
     stretch.ts        THE grab gesture — one engine for the family
     seam.ts           the joint light: where two rims meet, and how much
     springs.ts        sampled spring curves
@@ -195,14 +239,16 @@ src/components/
     hues.ts           the family's colour table — one per body, per frame
     select.ts         multi-select geometry: how neighbours become one shape
     sfx.ts            the voice — a tiny procedural synth, two characters
+    motion.ts         prefers-reduced-motion, asked in one place
     IconMorph.tsx     a glyph spinning away as its tick grows out of it
     RowHover.tsx      one highlight travelling under a list
     SelectionBurst.tsx  the full set, taking its bow
+    dropdown.module.css  the two dropdowns' shared surface
 ```
 
 Each interaction owns its choreography (open/close timelines, geometry, blur levels);
 everything that must never drift apart between them — the gesture, the curves, the rim
-math — lives in `liquid/`.
+math, the frame, the palette — lives in `liquid/` or in `styles/tokens.css`.
 
 ## Accessibility
 

@@ -19,7 +19,7 @@ import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 
 import { HOUSE_SPRING_POINTS, springEase } from "./springs";
-import { prefersReducedMotion } from "./stretch";
+import { prefersReducedMotion } from "./motion";
 import styles from "./RowHover.module.css";
 
 const SPRING = springEase("liquidRowHoverSpring", HOUSE_SPRING_POINTS);

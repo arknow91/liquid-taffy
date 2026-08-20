@@ -1,285 +1,68 @@
-/* Liquid morph — the in-place variant of the liquid family, after Apple's
-   Liquid Glass: the button itself pours out into the dropdown, which OCCUPIES
-   the button's spot; closing pours it back into the circle. Same three-layer
-   engine: crisp bodies below, the goo while anything moves, icons and rows on
-   top. */
+/* Liquid morph — the in-place variant, after Apple's Liquid Glass: the button
+   itself pours out into the dropdown, which OCCUPIES the button's spot;
+   closing pours it back into the circle.
+
+   Everything the two dropdowns share — bodies, goo, rows, wash, glyph,
+   trigger — is ONE file: liquid/dropdown.module.css. What is left here is the
+   only thing that makes this variant itself: the panel's bottom edge sits ON
+   the button's, so it grows up and sideways out of the button's own spot. */
 
 .anchor {
-  /* Every colour the surface wears, in one place: the light frame by default,
-     the dark frame under [data-theme="dark"]. Nothing else in this file names
-     a colour, so the two themes can never drift apart — the speed dial's
-     contract, verbatim. */
-  --liquid-surface: #ffffff;
-  --liquid-rim: #dadada;
-  --liquid-icon: #252731;
-  --liquid-icon-hover: #000000;
-  --liquid-text: #1f2029;
-  --liquid-hover-tint: rgb(0 0 0 / 4.5%);
-  /* The rows' quiet grey — the travelling hover AND the selection wash wear
-     this same neutral; colour belongs to the icons alone. */
-  --liquid-item-tint: rgb(0 0 0 / 4.5%);
-  --liquid-shadow-y: 3px;
-  --liquid-shadow-blur: 6.25px;
-  --liquid-shadow-color: rgb(0 0 0 / 8%);
-
-  /* ONE shadow for both pictures. box-shadow's blur is 2sigma; the blur in
-     filter: drop-shadow() IS sigma - so the drop-shadow the two layers share
-     gets HALF the Figma number, composed here from one set of values so the
-     crisp and liquid pictures can never drift apart. */
-  --liquid-goo-shadow: drop-shadow(
-    0 var(--liquid-shadow-y) calc(var(--liquid-shadow-blur) / 2) var(--liquid-shadow-color)
-  );
-
-  /* The back-out the icon morph and the wash radii ring on. */
-  --liquid-back-out: cubic-bezier(0.34, 1.56, 0.64, 1);
-
-  position: relative;
-  width: 32px;
-  height: 32px;
-  user-select: none;
-  -webkit-user-select: none;
+  composes: anchor from "../liquid/dropdown.module.css";
 }
 
-/* Dark frame - the speed dial's palette, worn by the whole family. */
-.anchor[data-theme="dark"] {
-  --liquid-surface: #212326;
-  --liquid-rim: #2f3235;
-  --liquid-icon: #ffffff;
-  --liquid-icon-hover: #ffffff;
-  --liquid-text: #ffffff;
-  --liquid-hover-tint: rgb(255 255 255 / 2%);
-  --liquid-item-tint: rgb(255 255 255 / 4.5%);
-  /* No shadow on the dark frame: a black shadow on a near-black stage only
-     muddies the ground under the drops. */
-  --liquid-goo-shadow: none;
-}
-
-/* ONE silhouette shadow for the crisp picture - the same drop-shadow the goo
-   wears, on the container, so it shades the UNION of the bodies and every
-   goo<->crisp swap stays pixel-identical. */
 .bodies {
-  position: absolute;
-  inset: 0;
-  filter: var(--liquid-goo-shadow);
+  composes: bodies from "../liquid/dropdown.module.css";
 }
 
 .triggerBody {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 16px;
-  background: var(--liquid-surface);
-  border: 1px solid var(--liquid-rim);
-  will-change: transform;
+  composes: triggerBody from "../liquid/dropdown.module.css";
 }
 
-/* The dropdown body IN THE BUTTON'S PLACE: centered on it, bottom edges
-   aligned — it grows up and sideways out of the button's spot. An SVG so the
-   shape is a true Apple squircle. */
+/* The panel's spot: the button's own — bottom edges aligned. */
 .panelBody {
-  position: absolute;
-  left: -54.5px; /* centers the 141px panel on the 32px button */
+  composes: panelBody from "../liquid/dropdown.module.css";
   bottom: 0; /* panel bottom = button bottom */
-  width: 141px;
-  height: 134px;
-  overflow: visible;
-  will-change: transform;
 }
 
 .panelBodyShape {
-  fill: var(--liquid-surface);
-  stroke: var(--liquid-rim);
-  stroke-width: 1;
+  composes: panelBodyShape from "../liquid/dropdown.module.css";
 }
 
-/* The goo canvas — headroom for the panel, the grab finger and the blur. */
 .goo {
-  position: absolute;
-  right: -144px; /* canvas 320 minus the button's right edge at x=176 */
-  /* 72px below the button: a full-length finger pulled down, its head and the
-     blur's tail all have to land inside the canvas or they are cut off. */
-  bottom: -72px;
-  width: 320px;
-  height: 308px;
-  z-index: 1;
-  overflow: visible;
-  pointer-events: none;
+  composes: goo from "../liquid/dropdown.module.css";
 }
 
 .blob {
-  fill: var(--liquid-surface);
-  will-change: transform;
+  composes: blob from "../liquid/dropdown.module.css";
 }
 
-/* Rows above the goo, sharing the panel's rect and transforms. */
+/* The rows ride the same rect as the body under them. */
 .panel {
-  position: absolute;
-  left: -54.5px;
+  composes: panel from "../liquid/dropdown.module.css";
   bottom: 0;
-  width: 141px;
-  height: 134px;
-  padding: 7px;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  will-change: transform;
 }
 
 .item {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 30px;
-  padding: 0 7px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--liquid-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  text-align: left;
-  white-space: nowrap;
-  /* The neon catch (grab feedback) writes color/filter inline; this is the
-     breath it rides in and out on. */
-  transition:
-    color 200ms var(--ease-out-strong),
-    filter 200ms var(--ease-out-strong);
+  composes: item from "../liquid/dropdown.module.css";
 }
 
-/* THE SELECTION WASH — one shape per run of neighbouring ticks, wearing the
-   rows' own neutral tint, flat: colour lives only in the icons. Geometry
-   arrives from liquid/select.ts — the radii between selected neighbours
-   collapse, so two rows ticked together read as ONE rounded shape — and
-   both the fade and the radii are interpolable, so selecting, merging and
-   splitting all breathe instead of snapping. */
-.item::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: var(--sel-radius-top) var(--sel-radius-top) var(--sel-radius-bottom)
-    var(--sel-radius-bottom);
-  background: var(--liquid-item-tint);
-  opacity: 0;
-  transition:
-    opacity 200ms var(--ease-out-strong),
-    border-radius 260ms var(--liquid-back-out);
-}
-
-/* The run's own opacity is a VARIABLE, so the close can pull every wash down
-   as one before the panel dives: a panel folding into a 32px circle while
-   still carrying lit blocks reads as the selection being crushed rather than
-   put away. Selection changes still fade on the transition above; the close
-   turns that transition off (see [data-closing]) and drives the variable
-   itself, so the two never chase each other. */
-.item[data-selected]::before {
-  opacity: var(--sel-alpha, 1);
-}
-
-.panel[data-wash] .item::before {
-  transition: none;
-}
-
-/* The hover is NOT here: it is one pill travelling under the whole list
-   (liquid/RowHover.tsx). A per-row highlight cannot slide from row to row,
-   and it inherited the selection run's collapsed corners — the hover has to
-   keep a row's own shape, four rounded corners and one row tall, whatever
-   the wash beneath it is doing. */
-
-/* The icon: ONE svg whose stroke is live geometry — the vertex morph
-   (liquid/IconMorph.tsx) rewrites its points every frame of a selection
-   change, so there is no second icon and nothing crossfades. Colour and
-   glow are CSS's: hue on hover and while ticked, the bloom on a shorter
-   clock than the colour (a bloom spends most of its ramp invisible, so an
-   equal clock reads as arriving late). */
 .itemIcon {
-  position: relative;
-  z-index: 1;
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-  color: inherit;
-  filter: drop-shadow(0 0 3px transparent) drop-shadow(0 0 8px transparent);
-  /* On the travelling pill's own clock: the pill lands in ~190ms, so the
-     hue arrives with it and the bloom (which spends most of its ramp
-     invisible) a beat ahead — anything slower read as the icon waking up
-     late. */
-  transition:
-    color 120ms var(--ease-out-strong),
-    filter 90ms var(--ease-out-strong);
+  composes: itemIcon from "../liquid/dropdown.module.css";
 }
 
-/* Dark frame only: there a row's glyph wears its PlayStation hue on hover
-   and while ticked. On the light frame the family is monochrome — the glyph
-   keeps the row's own ink, and a tick reads by its SHAPE alone. */
-.anchor[data-theme="dark"] .item:hover .itemIcon,
-.anchor[data-theme="dark"] .item[data-selected] .itemIcon {
-  color: var(--row-hue);
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--row-hue) 88%, transparent))
-    drop-shadow(0 0 8px color-mix(in srgb, var(--row-hue) 45%, transparent));
-}
-
-/* The content wrapper — what the entry stagger actually moves. Above the
-   wash, carrying the row's own layout. */
 .itemInner {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  will-change: transform;
+  composes: itemInner from "../liquid/dropdown.module.css";
 }
 
 .itemLabel {
-  position: relative;
-  z-index: 1;
+  composes: itemLabel from "../liquid/dropdown.module.css";
 }
 
-/* Transparent hit area over the circle; the icon rides above the goo. */
 .trigger {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 16px;
-  background: none;
-  color: var(--liquid-icon);
-  transition:
-    color 160ms var(--ease-out-strong),
-    background-color 160ms var(--ease-out-strong);
-}
-
-.trigger:hover {
-  color: var(--liquid-icon-hover);
-  background: var(--liquid-hover-tint);
-}
-
-/* Whenever the liquid owns the picture (a morph or a grab), the button's crisp
-   hover disc steps aside: painted over the moving goo it reads as a second
-   border, and during a grab it would double the hover tint the liquid itself
-   already wears. */
-.anchor[data-liquid] .trigger:hover,
-.anchor[data-liquid] .trigger {
-  background: none;
+  composes: trigger from "../liquid/dropdown.module.css";
 }
 
 .triggerIcon {
-  display: flex;
-  will-change: transform;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .item,
-  .item::before,
-  .itemIcon {
-    transition: none;
-  }
+  composes: triggerIcon from "../liquid/dropdown.module.css";
 }

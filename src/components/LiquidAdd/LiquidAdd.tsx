@@ -12,18 +12,19 @@ import { CustomEase } from "gsap/CustomEase";
 import { ICON_PATHS, PlusIcon } from "../LiquidMenu/icons";
 import { GOO_RIM_THRESHOLDS, gooThreshold, setGooBlur } from "../liquid/goo";
 import { SHAPE_HUES, motifHue, neonGlow, seamHue } from "../liquid/hues";
+import { prefersReducedMotion } from "../liquid/motion";
 import { createLiquidSeam, type LiquidSeam, type SeamJoint } from "../liquid/seam";
 import { HOUSE_SPRING_POINTS, POP_SPRING_POINTS, springEase } from "../liquid/springs";
 import { IconMorph } from "../liquid/IconMorph";
 import { RowHover } from "../liquid/RowHover";
 import { rowSelectionStyle } from "../liquid/select";
 import { gooSfx } from "../liquid/sfx";
+import { useLiquidTheme, useLiquidThemeRef } from "../liquid/theme";
 import { SelectionBurst } from "../liquid/SelectionBurst";
 import { squirclePath } from "../liquid/squircle";
 import {
   GRAB_CHAIN,
   createLiquidStretch,
-  prefersReducedMotion,
   type LiquidStretch,
 } from "../liquid/stretch";
 import styles from "./LiquidAdd.module.css";
@@ -113,16 +114,12 @@ const SEAM_RADIUS = 20;
    light is still dying. */
 const SEAM_LAYERS = [0, 1];
 
-export type LiquidAddTheme = "light" | "dark";
-
-export interface LiquidAddProps {
-  /* The frame the button is standing on — light by default. Same contract as
-     the speed dial's: it only swaps the colour variables in the stylesheet;
-     every spring, blur and threshold is the same one. */
-  theme?: LiquidAddTheme;
-}
-
-export function LiquidAdd({ theme = "light" }: LiquidAddProps = {}) {
+export function LiquidAdd() {
+  /* The frame this drop is standing on — the STAGE's, read from context, not
+     a prop passed down through every view. It only swaps which colours the
+     palette hands over; every spring, blur and threshold is the same one on
+     both frames. */
+  const theme = useLiquidTheme();
   const menuId = useId();
   const gooId = `liquid-add-goo-${useId().replace(/:/g, "")}`;
   /* The seam's three parts: a filter that keeps ONLY the rim, a mask made of
@@ -179,8 +176,7 @@ export function LiquidAdd({ theme = "light" }: LiquidAddProps = {}) {
   const isOpenRef = useRef(false);
   /* Same reason: the voice asks which frame it is speaking in, and the host
      callbacks outlive the render that made them. */
-  const themeRef = useRef(theme);
-  themeRef.current = theme;
+  const themeRef = useLiquidThemeRef();
   const [isOpen, setIsOpen] = useState(false);
   /* Multi-select: which rows are ticked. Persists across open/close — a
      selection is a state, not a gesture. */
@@ -840,7 +836,6 @@ export function LiquidAdd({ theme = "light" }: LiquidAddProps = {}) {
       <SelectionBurst
         active={selected.every(Boolean)}
         open={isOpen}
-        theme={theme}
         panel={{
           left: -(PANEL_WIDTH - BUTTON_SIZE) / 2,
           bottom: 46,

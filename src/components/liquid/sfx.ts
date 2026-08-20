@@ -25,7 +25,7 @@
    to let go. Nothing else changes — same machine, same gestures, the room
    around it is what differs. */
 
-export type GooFrame = "light" | "dark";
+import type { LiquidTheme } from "./theme";
 
 /* The character controls. Everything is a MULTIPLIER on the authored shape
    below, so a frame is described by how it differs, not by a second set of
@@ -47,7 +47,7 @@ export interface GooCharacter {
   gain: number;
 }
 
-const FRAMES: Record<GooFrame, GooCharacter> = {
+const FRAMES: Record<LiquidTheme, GooCharacter> = {
   light: {
     pitch: 1.24,
     glide: 0.85,
@@ -174,7 +174,7 @@ const SHAPES: Record<string, GooShape> = {
 export type GooSound = keyof typeof SHAPES;
 
 export interface GooOptions {
-  frame?: GooFrame;
+  frame?: LiquidTheme;
   /* How hard the gesture was, 0..1-ish. Scales loudness and pitch a little —
      the same hit harder, not a different hit. */
   force?: number;

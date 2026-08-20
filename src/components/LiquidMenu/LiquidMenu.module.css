@@ -11,71 +11,16 @@
       so the glyphs fly above the liquid. */
 
 .anchor {
-  /* Every colour the dial wears, in one place: the light frame by default,
-     the dark frame under [data-theme="dark"]. Nothing else in this file names
-     a colour, so the two themes can never drift apart. */
-  --liquid-surface: #ffffff;
-  --liquid-rim: #dadada;
-  --liquid-icon: #252731;
-  --liquid-icon-hover: #000000;
-  /* A breath of a tint — the hover only nudges the face off its resting
-     shade, it never reads as a new surface. */
-  --liquid-hover-tint: rgb(0 0 0 / 2.5%);
-  --liquid-shadow-y: 3px;
-  --liquid-shadow-blur: 6.25px;
-  --liquid-shadow-color: rgb(0 0 0 / 8%);
-  --liquid-tooltip-bg: var(--color-tooltip-bg);
-  --liquid-tooltip-text: var(--color-tooltip-text);
-  /* The seam's DEFAULT colour only — the first paint a joint wears for the
-     frame or two before the engine hands it the pair's own hue (each satellite
-     carries its own; see SATELLITES in the component). The gradient dies out
-     by opacity, so no fade colour lives here. */
-  --liquid-seam: #785dd6;
-
-  /* ONE shadow, written twice — and the two syntaxes do NOT agree on their
-     blur number. box-shadow's blur is 2σ; the blur in filter: drop-shadow() IS
-     σ. Handing both the Figma number gave the liquid a shadow twice as wide as
-     the resting buttons', so the moment the goo took the picture over the drop
-     bloomed a second, softer halo. The goo's blur is therefore HALF, and both
-     are composed here from the same three values so they cannot drift again. */
-  --liquid-shadow: 0 var(--liquid-shadow-y) var(--liquid-shadow-blur) var(--liquid-shadow-color);
-  --liquid-goo-shadow: drop-shadow(
-    0 var(--liquid-shadow-y) calc(var(--liquid-shadow-blur) / 2) var(--liquid-shadow-color)
-  );
-
+  /* No colour is named in this file. Every one the dial wears — face, rim,
+     glyph, tooltip, shadow, seam — arrives from the palette
+     (styles/tokens.css) and changes with the frame on its own; what lives
+     here is geometry, and the rules below that belong to the dark frame
+     alone: the PlayStation motif, which the light frame does not carry. */
   position: relative;
   width: 32px;
   height: 32px;
   user-select: none;
   -webkit-user-select: none;
-}
-
-/* Dark frame — Figma "Admin" 9691:1764. The rim there is a 6% white stroke and
-   the hover tint a white wash, but the goo draws its rim by flooding ONE flat
-   colour into the sliver between two contours: a translucent flood would tint
-   whatever the liquid happens to be flying over, and the crisp border under it
-   would show through doubled. So both wear the SOLVED solid — 6% white already
-   composited over the buttons' own #222528 — and the crisp and liquid pictures
-   stay the single border this family is built on. */
-.anchor[data-theme="dark"] {
-  /* The drops wear the stage's own grey (--color-viewport-bg's dark value):
-     no shadow, no fill of their own — on the dark frame a drop is nothing
-     but its border standing on the ground it lives on. */
-  --liquid-surface: #212326;
-  --liquid-rim: #2f3235;
-  --liquid-icon: #ffffff;
-  --liquid-icon-hover: #ffffff;
-  /* 2% white over #222528 lands on ~#272a2d — the faintest lift off the
-     resting face, a glow rather than a wash. */
-  --liquid-hover-tint: rgb(255 255 255 / 2%);
-  /* No shadow on the dark frame: a black shadow on a near-black stage only
-     muddied the ground under the drops. Both layers (crisp bodies and goo)
-     compose their shadow from this one var, so none here means none ever. */
-  --liquid-goo-shadow: none;
-  --liquid-tooltip-bg: #ffffff;
-  --liquid-tooltip-text: #0b0b0c;
-  /* Lifted for the dark frame — the file's own lighter violet. */
-  --liquid-seam: #8a68ff;
 }
 
 /* ONE silhouette shadow for the crisp picture — the same drop-shadow the goo
@@ -348,8 +293,8 @@
   display: block;
   padding: 4px 8px;
   border-radius: 33px;
-  background: var(--liquid-tooltip-bg);
-  color: var(--liquid-tooltip-text);
+  background: var(--color-tooltip-bg);
+  color: var(--color-tooltip-text);
   font-family: var(--font-family);
   font-size: var(--font-size-md);
   font-weight: 400;

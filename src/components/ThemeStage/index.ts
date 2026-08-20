@@ -1,1 +1,1 @@
-export { ThemeStage, type StageTheme } from "./ThemeStage";
+export { ThemeStage } from "./ThemeStage";

@@ -8,14 +8,17 @@
  * size while it flies.
  *
  * It knows nothing about what it switches: it is handed items, the id that is
- * currently picked, and a callback. Every colour it wears is a local custom
- * property on its own root, so it stays self-contained when it is lifted out
- * of here — same contract as the liquid surfaces. */
+ * currently picked, and a callback. Its colours are the liquid family's own —
+ * the pill wears the drops' surface and rim, the labels the stage's ink — so
+ * it changes frame with everything around it and never carries a palette of
+ * its own (see styles/tokens.css). */
 
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import gsap from "gsap";
 
+import { prefersReducedMotion } from "../liquid/motion";
 import { gooSfx } from "../liquid/sfx";
+import { useLiquidTheme } from "../liquid/theme";
 import styles from "./PillTabs.module.css";
 
 export type PillTabItem<Id extends string = string> = {
@@ -35,16 +38,12 @@ type PillTabsProps<Id extends string> = {
   /* Names the row for screen readers — the tabs alone say what they switch to,
      not what they are switching. */
   label: string;
-  /* The frame the row is standing on — light by default. Same contract as the
-     liquid surfaces': it only swaps the colour variables in the stylesheet. */
-  theme?: "light" | "dark";
 };
 
-function prefersReducedMotion() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-export function PillTabs<Id extends string>({ items, value, onChange, label, theme = "light" }: PillTabsProps<Id>) {
+export function PillTabs<Id extends string>({ items, value, onChange, label }: PillTabsProps<Id>) {
+  /* Only the VOICE asks which frame this is — the colours arrive on their
+     own, inherited from the stage. */
+  const theme = useLiquidTheme();
   const rowRef = useRef<HTMLDivElement | null>(null);
   const pillRef = useRef<HTMLSpanElement | null>(null);
   const tabRefs = useRef(new Map<Id, HTMLButtonElement>());
@@ -170,7 +169,7 @@ export function PillTabs<Id extends string>({ items, value, onChange, label, the
   }, []);
 
   return (
-    <div className={styles.tabs} role="tablist" aria-label={label} data-theme={theme} ref={rowRef}>
+    <div className={styles.tabs} role="tablist" aria-label={label} ref={rowRef}>
       <span className={styles.pill} aria-hidden="true" ref={pillRef} />
       {items.map((item) => (
         <button

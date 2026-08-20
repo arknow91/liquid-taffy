@@ -13,14 +13,15 @@ import { CustomEase } from "gsap/CustomEase";
 
 import { CircleIcon, PlusIcon, SquareIcon, TriangleIcon } from "./icons";
 import { GOO_RIM_THRESHOLDS, gooThreshold, setGooBlur } from "../liquid/goo";
-import { SHAPE_HUES, motifHue, seamHue, type BubbleHue } from "../liquid/hues";
+import { SHAPE_HUES, motifHue, seamHue } from "../liquid/hues";
+import { prefersReducedMotion } from "../liquid/motion";
 import { createLiquidSeam, type LiquidSeam, type SeamJoint } from "../liquid/seam";
 import { gooSfx } from "../liquid/sfx";
+import { useLiquidTheme } from "../liquid/theme";
 import { HOUSE_SPRING_POINTS, POP_SPRING_POINTS, springEase } from "../liquid/springs";
 import {
   GRAB_CHAIN,
   createLiquidStretch,
-  prefersReducedMotion,
   type LiquidStretch,
   type StretchTarget,
 } from "../liquid/stretch";
@@ -48,7 +49,6 @@ const BUTTON_SIZE = 32;
    a joint (its side of the two-hue gradient), and in the neon a completed
    merge puts under the X. The hues themselves live in liquid/hues.ts — one
    table for the family. */
-export type { BubbleHue };
 
 /* Satellite fan, offsets from the trigger's center — the PlayStation pad's
    own compass around the X: square LEFT, triangle UP, circle RIGHT. Rest
@@ -140,16 +140,12 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as { __liquidGsap?: typeof gsap }).__liquidGsap = gsap;
 }
 
-export type LiquidMenuTheme = "light" | "dark";
-
-export interface LiquidMenuProps {
-  /* The frame the dial is standing on — light by default, the dark frame
-     (Figma "Admin" 9688:1748) under "dark". It only swaps the colour variables
-     in the stylesheet; every spring, blur and threshold is the same one. */
-  theme?: LiquidMenuTheme;
-}
-
-export function LiquidMenu({ theme = "light" }: LiquidMenuProps = {}) {
+export function LiquidMenu() {
+  /* The frame this dial is standing on — the STAGE's, read from context, not
+     a prop passed down through every view. It only swaps which colours the
+     palette hands over (the dark frame is Figma "Admin" 9688:1748); every
+     spring, blur and threshold is the same one on both frames. */
+  const theme = useLiquidTheme();
   const menuId = useId();
   const gooId = `liquid-goo-${useId().replace(/:/g, "")}`;
   /* The seam's three parts: a filter that keeps ONLY the rim, a mask made of

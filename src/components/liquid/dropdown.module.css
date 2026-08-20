@@ -1,0 +1,273 @@
+/* THE DROPDOWN'S SURFACE — one copy, worn by both variants.
+
+   LiquidAdd hangs its panel above the button; LiquidMorph pours the button
+   itself into the panel's place. That difference is TWO numbers — where the
+   panel's box sits — and it is the only thing either host still owns. Every
+   other pixel of the picture is here: the crisp bodies, the goo canvas, the
+   rows and their wash, the glyph, the trigger. They were two files that had
+   drifted into two different sets of comments around the same rules; a fix
+   to one of them was a fix to one of them.
+
+   No colour is named in this file either — the palette (styles/tokens.css)
+   hands over both frames, and the two rules keyed on [data-theme] are the
+   places where the frames genuinely differ: the light frame carries no
+   PlayStation motif and no joint colour at all. Those selectors read the
+   attribute rather than a class, because the attribute is on the host's own
+   anchor — the frame is the stage's, and this file only asks which one. */
+
+.anchor {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ONE silhouette shadow for the crisp picture — the same drop-shadow the goo
+   wears, on the container, so it shades the UNION of the bodies. Per-body
+   shadows summed where the panel stood over the button, so every goo↔crisp
+   swap made the shadow visibly deepen or thin; with both layers shading the
+   same silhouette through the same variable the swap is pixel-identical. */
+.bodies {
+  position: absolute;
+  inset: 0;
+  filter: var(--liquid-goo-shadow);
+}
+
+.triggerBody {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--liquid-surface);
+  border: 1px solid var(--liquid-rim);
+  will-change: transform;
+}
+
+/* The panel's body — an SVG, so the shape is a true Apple squircle with the
+   border as a stroke. WHERE it sits is the host's (see each module). */
+.panelBody {
+  position: absolute;
+  left: -54.5px; /* centers the 141px panel on the 32px button */
+  width: 141px;
+  height: 134px; /* 2×7 padding + 4 rows × 30 */
+  overflow: visible;
+  will-change: transform;
+}
+
+.panelBodyShape {
+  fill: var(--liquid-surface);
+  stroke: var(--liquid-rim);
+  stroke-width: 1;
+}
+
+/* The goo canvas — headroom for the panel, the grab finger and the blur. */
+.goo {
+  position: absolute;
+  right: -144px; /* canvas 320 minus the button's right edge at x=176 */
+  /* 72px below the button: a full-length finger pulled down, its head and the
+     blur's tail all have to land inside the canvas or they are cut off. */
+  bottom: -72px;
+  width: 320px;
+  height: 308px;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.blob {
+  fill: var(--liquid-surface);
+  will-change: transform;
+}
+
+/* The seam wash. Opacity is the only thing animated on it — the gradient
+   underneath carries where and how wide. Hidden until the engine lights it,
+   and hidden rather than merely transparent: the mask that cuts this wash
+   down to the rim runs the goo's blur a SECOND time, and a browser is only
+   guaranteed to skip that for something it is not painting. */
+.seam {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+/* The light frame carries no joint colour at all. Taken out of the picture
+   here rather than by refusing to measure: the engine still reports every
+   contact — the glyphs and the voice live off those — it just has nothing to
+   paint on this stage. display, not visibility, because the engine writes
+   visibility itself. */
+[data-theme="light"] .seam {
+  display: none;
+}
+
+/* Rows above the goo, sharing the panel's rect and transforms. */
+.panel {
+  position: absolute;
+  left: -54.5px;
+  width: 141px;
+  height: 134px;
+  padding: 7px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--liquid-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  text-align: left;
+  white-space: nowrap;
+  /* The neon catch (grab feedback) writes color/filter inline; this is the
+     breath it rides in and out on. */
+  transition:
+    color 200ms var(--ease-out-strong),
+    filter 200ms var(--ease-out-strong);
+}
+
+/* THE SELECTION WASH — one shape per run of neighbouring ticks, wearing the
+   rows' own neutral tint, flat: colour lives only in the icons. Geometry
+   arrives from liquid/select.ts — the radii between selected neighbours
+   collapse, so two rows ticked together read as ONE rounded shape — and both
+   the fade and the radii are interpolable, so selecting, merging and
+   splitting all breathe instead of snapping. */
+.item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--sel-radius-top) var(--sel-radius-top) var(--sel-radius-bottom)
+    var(--sel-radius-bottom);
+  background: var(--liquid-item-tint);
+  opacity: 0;
+  transition:
+    opacity 200ms var(--ease-out-strong),
+    border-radius 260ms var(--ease-back-out);
+}
+
+/* The run's own opacity is a VARIABLE, so the close can pull every wash down
+   as one before the panel dives: a panel folding into a 32px circle while
+   still carrying lit blocks reads as the selection being crushed rather than
+   put away. Selection changes still fade on the transition above; the close
+   turns that transition off (see [data-wash]) and drives the variable itself,
+   so the two never chase each other. */
+.item[data-selected]::before {
+  opacity: var(--sel-alpha, 1);
+}
+
+.panel[data-wash] .item::before {
+  transition: none;
+}
+
+/* The hover is NOT here: it is one pill travelling under the whole list
+   (liquid/RowHover.tsx). A per-row highlight cannot slide from row to row,
+   and it inherited the selection run's collapsed corners — the hover has to
+   keep a row's own shape, four rounded corners and one row tall, whatever
+   the wash beneath it is doing. */
+
+/* The icon: ONE svg whose stroke is live geometry — the vertex morph
+   (liquid/IconMorph.tsx) rewrites its points every frame of a selection
+   change, so there is no second icon and nothing crossfades. Colour and glow
+   are CSS's: hue on hover and while ticked, the bloom on a shorter clock than
+   the colour (a bloom spends most of its ramp invisible, so an equal clock
+   reads as arriving late). */
+.itemIcon {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: inherit;
+  filter: drop-shadow(0 0 3px transparent) drop-shadow(0 0 8px transparent);
+  /* On the travelling pill's own clock: the pill lands in ~190ms, so the hue
+     arrives with it and the bloom (which spends most of its ramp invisible) a
+     beat ahead — anything slower read as the icon waking up late. */
+  transition:
+    color 120ms var(--ease-out-strong),
+    filter 90ms var(--ease-out-strong);
+}
+
+/* Dark frame only: there a row's glyph wears its PlayStation hue on hover and
+   while ticked. On the light frame the family is monochrome — the glyph keeps
+   the row's own ink, and a tick reads by its SHAPE alone. */
+[data-theme="dark"] .item:hover .itemIcon,
+[data-theme="dark"] .item[data-selected] .itemIcon {
+  color: var(--row-hue);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--row-hue) 88%, transparent))
+    drop-shadow(0 0 8px color-mix(in srgb, var(--row-hue) 45%, transparent));
+}
+
+/* The content wrapper — what the entry stagger actually moves. Above the
+   wash, carrying the row's own layout. */
+.itemInner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  will-change: transform;
+}
+
+.itemLabel {
+  position: relative;
+  z-index: 1;
+}
+
+/* Transparent hit area over the circle; the icon rides above the goo. */
+.trigger {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: none;
+  color: var(--liquid-icon);
+  transition:
+    color 160ms var(--ease-out-strong),
+    background-color 160ms var(--ease-out-strong);
+}
+
+.trigger:hover {
+  color: var(--liquid-icon-hover);
+  background: var(--liquid-panel-hover-tint);
+}
+
+/* Whenever the liquid owns the picture (an open/close flight, a morph or a
+   grab), the button's crisp hover disc steps aside: painted over the moving
+   goo it reads as a second border, and during a grab it would double the
+   hover tint the liquid itself already wears. */
+[data-liquid] .trigger:hover,
+[data-liquid] .trigger {
+  background: none;
+}
+
+.triggerIcon {
+  display: flex;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item,
+  .item::before,
+  .itemIcon {
+    transition: none;
+  }
+}

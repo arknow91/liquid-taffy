@@ -1,33 +1,15 @@
 /* The pill row. On the banners it rode a #0b0b0c stage and wore dark glass;
-   here it sits on the liquid family's Figma-frame grey, so it wears the same
-   surface the drops do — white, the family's 1px #dadada rim, the family's
-   shadow — and the labels ink dark. Every colour is a local custom property on
-   this root, so the row is self-contained when it is lifted out. */
+   here it sits on the liquid family's Figma-frame grey and wears the family's
+   own colours — the drops' surface and rim, the drops' shadow, the stage's
+   ink — read straight from the palette (styles/tokens.css). It names no
+   colour of its own, so it changes frame with everything around it. */
 
 .tabs {
-  --tabs-surface: #ffffff;
-  --tabs-rim: #dadada;
-  --tabs-label: #6b6c78;
-  --tabs-label-active: #1f2029;
-  --tabs-shadow: 0 3px 6.25px rgb(0 0 0 / 8%);
-
   /* Relative, because the travelling pill positions itself against this row. */
   position: relative;
   display: flex;
   gap: 4px;
   font-family: var(--font-family);
-}
-
-/* Dark frame — the liquid family's palette: the pill wears the drops' own
-   surface and rim, the labels ink white, and the shadow goes (a black shadow
-   on a near-black stage only muddies the ground). A zero shadow rather than
-   none, because it lives inside a composed box-shadow list. */
-.tabs[data-theme="dark"] {
-  --tabs-surface: #212326;
-  --tabs-rim: #2f3235;
-  --tabs-label: rgb(255 255 255 / 56%);
-  --tabs-label-active: #ffffff;
-  --tabs-shadow: 0 0 0 rgb(0 0 0 / 0%);
 }
 
 /* One shared pill UNDER the labels; GSAP carries it. The buttons only change
@@ -39,12 +21,12 @@
   z-index: 0;
   height: 28px;
   border-radius: 62px;
-  background: var(--tabs-surface);
+  background: var(--liquid-surface);
   /* Rim as a spread shadow rather than a border: a border would be part of the
      pill's layout box, and this element's width is tweened every frame. */
   box-shadow:
-    0 0 0 1px var(--tabs-rim),
-    var(--tabs-shadow);
+    0 0 0 1px var(--liquid-rim),
+    var(--liquid-shadow);
   /* The row can change FRAME under a live pill (see the theme stage), and a
      surface that snaps from white to near-black is the one jarring thing in
      an otherwise smooth swap. The travel is GSAP's; only the colours ride
@@ -74,7 +56,7 @@
      with what it is switching. */
   font-weight: 400;
   line-height: var(--line-height-md);
-  color: var(--tabs-label);
+  color: var(--color-text-secondary);
   white-space: nowrap;
   transition:
     color 380ms var(--ease-out-strong),
@@ -85,7 +67,7 @@
    so "this one is reachable" is answered before the click. */
 .tab:hover:not(.tabActive),
 .tab:focus-visible:not(.tabActive) {
-  color: var(--tabs-label-active);
+  color: var(--color-text-primary);
 }
 
 .tab:active {
@@ -97,5 +79,5 @@
    label re-measures the tab, and the pill is tweening to that width while the
    text is still changing under it. */
 .tabActive {
-  color: var(--tabs-label-active);
+  color: var(--color-text-primary);
 }

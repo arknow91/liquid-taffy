@@ -19,9 +19,10 @@ import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 
 import { ICON_PATHS } from "../LiquidMenu/icons";
-import { SHAPE_HUES, motifHue, type BubbleHue } from "./hues";
+import { SHAPE_HUES, motifHue } from "./hues";
 import { gooSfx } from "./sfx";
-import { prefersReducedMotion } from "./stretch";
+import { prefersReducedMotion } from "./motion";
+import { useLiquidTheme } from "./theme";
 import styles from "./SelectionBurst.module.css";
 
 /* The cast: seven pieces — the four glyphs with a few repeats — each with
@@ -46,14 +47,16 @@ export interface SelectionBurstProps {
      a closed button would be exactly the kind of orphan this family never
      shows — so they dive after the panel and are gone with it. */
   open: boolean;
-  theme: keyof BubbleHue;
   /* The panel's box in the host anchor's coordinates — the layer sits
      exactly on the panel, so the pieces' geometry is measured off the very
      curtain that hides them. */
   panel: { left: number; bottom: number; width: number; height: number };
 }
 
-export function SelectionBurst({ active, open, theme, panel }: SelectionBurstProps) {
+export function SelectionBurst({ active, open, panel }: SelectionBurstProps) {
+  /* The frame is the STAGE's, not a prop of its own: the burst is the one
+     piece of the family that exists on only one of them. */
+  const theme = useLiquidTheme();
   const pieceRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const timelinesRef = useRef<gsap.core.Timeline[]>([]);
   /* Armed with the CURRENT value, so a dropdown that mounts already-full

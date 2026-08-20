@@ -15,6 +15,7 @@
 import gsap from "gsap";
 import { CustomEase } from "gsap/CustomEase";
 
+import { prefersReducedMotion } from "./motion";
 import { HOUSE_SPRING_POINTS, springEase } from "./springs";
 
 gsap.registerPlugin(CustomEase);
@@ -114,10 +115,6 @@ export interface LiquidStretch {
   /* Kill the release choreography — call before any full open/close run and
      on unmount. */
   kill(): void;
-}
-
-export function prefersReducedMotion() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 export function createLiquidStretch(host: StretchHost): LiquidStretch {

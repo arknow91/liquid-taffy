@@ -20,17 +20,17 @@ import gsap from "gsap";
 
 import { InteractionStage } from "../InteractionStage";
 import { PillTabs, type PillTabItem } from "../PillTabs";
-import { prefersReducedMotion } from "../liquid/stretch";
+import { prefersReducedMotion } from "../liquid/motion";
+import type { LiquidTheme } from "../liquid/theme";
 import { PlayStationMark } from "./PlayStationMark";
 import styles from "./ThemeStage.module.css";
 
-export type StageTheme = "light" | "dark";
-
 export interface ThemeStageProps {
-  theme: StageTheme;
-  /* The frame lives in the app, so the viewport and the navigation ink flip
-     with the stage — this view only decides WHEN. */
-  onThemeChange: (theme: StageTheme) => void;
+  theme: LiquidTheme;
+  /* The frame lives in the app — it is what the whole viewport is standing
+     on, so the ground, the ink and every surface flip together
+     (see App, and liquid/theme.ts). This view only decides WHEN. */
+  onThemeChange: (theme: LiquidTheme) => void;
 }
 
 export function ThemeStage({ theme, onThemeChange }: ThemeStageProps) {
@@ -49,7 +49,7 @@ export function ThemeStage({ theme, onThemeChange }: ThemeStageProps) {
   );
 
   const swapTheme = useCallback(
-    (next: StageTheme) => {
+    (next: LiquidTheme) => {
       if (next === theme) {
         return;
       }
@@ -78,7 +78,7 @@ export function ThemeStage({ theme, onThemeChange }: ThemeStageProps) {
 
   /* Memoised: a fresh array on every render would hand the row a "new" set
      of tabs and set its pill travelling again over the same slot. */
-  const TABS: readonly PillTabItem<StageTheme>[] = useMemo(
+  const TABS: readonly PillTabItem<LiquidTheme>[] = useMemo(
     () => [
       { id: "light", label: "Light" },
       {
@@ -98,11 +98,11 @@ export function ThemeStage({ theme, onThemeChange }: ThemeStageProps) {
   return (
     <div className={styles.shell}>
       <div className={styles.switchRow}>
-        <PillTabs items={TABS} value={theme} onChange={swapTheme} label="Frame" theme={theme} />
+        <PillTabs items={TABS} value={theme} onChange={swapTheme} label="Frame" />
       </div>
 
       <div ref={contentRef} className={styles.content}>
-        <InteractionStage theme={theme} />
+        <InteractionStage />
       </div>
     </div>
   );

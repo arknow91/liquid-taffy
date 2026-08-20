@@ -8,10 +8,14 @@
    these hues live only in the seam gradient and the neon a completed merge
    puts under a glyph. */
 
-export interface BubbleHue {
-  light: string;
-  dark: string;
-}
+import type { LiquidTheme } from "./theme";
+
+/* One hue per frame — the frame's own type decides the shape, so a third
+   frame could never be added to the family without every motif answering for
+   it. The `light` half is held but not worn: the light frame is monochrome
+   by rule (see motifHue), and these are the values it would wear the day
+   that changes. */
+export type BubbleHue = Record<LiquidTheme, string>;
 
 export const SHAPE_HUES = {
   circle: { light: "#e0344a", dark: "#ff4f5e" } satisfies BubbleHue,
@@ -22,7 +26,9 @@ export const SHAPE_HUES = {
   triangle: { light: "#0fae62", dark: "#2fe08b" } satisfies BubbleHue,
 } as const;
 
-export function mixHex(one: string, two: string, amount: number) {
+/* Only seamHue needs it — kept private so the table stays the file's one
+   export surface. */
+function mixHex(one: string, two: string, amount: number) {
   const parse = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
   const [r1, g1, b1] = parse(one);
   const [r2, g2, b2] = parse(two);
@@ -41,14 +47,14 @@ export function mixHex(one: string, two: string, amount: number) {
 
    `null` means "no motif here"; every consumer falls back to its own ink,
    so the rule lives in ONE place and the two frames can never drift. */
-export function motifHue(hue: BubbleHue, theme: keyof BubbleHue) {
+export function motifHue(hue: BubbleHue, theme: LiquidTheme) {
   return theme === "dark" ? hue.dark : null;
 }
 
 /* A whisper of white on the dark frame — just enough luminance for a 1px line
    on a near-black rim. Any more and the vivid hues wash out to pastel, which
    is the opposite of what they are here for. */
-export function seamHue(hue: string, theme: "light" | "dark") {
+export function seamHue(hue: string, theme: LiquidTheme) {
   return theme === "dark" ? mixHex(hue, "#ffffff", 0.08) : hue;
 }
 
