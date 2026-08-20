@@ -24,13 +24,22 @@ import styles from "./InteractionStage.module.css";
 
 export type InteractionId = "anchored-dropdown" | "morphing-dropdown" | "speed-dial";
 
+export type InteractionStageTheme = "light" | "dark";
+
+export interface InteractionStageProps {
+  /* The frame the three surfaces stand on — light by default, the dark frame
+     under "dark". Handed straight down: each surface carries its own colours
+     locally, and the pill row flips its ink with the stage. */
+  theme?: InteractionStageTheme;
+}
+
 const TABS: readonly PillTabItem<InteractionId>[] = [
   { id: "anchored-dropdown", label: "Anchored dropdown" },
   { id: "morphing-dropdown", label: "Morphing dropdown" },
   { id: "speed-dial", label: "Speed dial" },
 ];
 
-export function InteractionStage() {
+export function InteractionStage({ theme = "light" }: InteractionStageProps = {}) {
   const [shown, setShown] = useState<InteractionId>("anchored-dropdown");
 
   return (
@@ -39,13 +48,13 @@ export function InteractionStage() {
         {/* Keyed so a switch is a fresh surface arriving, not the old one being
             redressed in place — each of these owns a GSAP timeline and a goo
             filter tuned to its own geometry. */}
-        {shown === "anchored-dropdown" ? <LiquidAdd key="anchored-dropdown" /> : null}
-        {shown === "morphing-dropdown" ? <LiquidMorph key="morphing-dropdown" /> : null}
-        {shown === "speed-dial" ? <LiquidMenu key="speed-dial" /> : null}
+        {shown === "anchored-dropdown" ? <LiquidAdd key="anchored-dropdown" theme={theme} /> : null}
+        {shown === "morphing-dropdown" ? <LiquidMorph key="morphing-dropdown" theme={theme} /> : null}
+        {shown === "speed-dial" ? <LiquidMenu key="speed-dial" theme={theme} /> : null}
       </div>
 
       <div className={styles.bar}>
-        <PillTabs items={TABS} value={shown} onChange={setShown} label="Interactions" />
+        <PillTabs items={TABS} value={shown} onChange={setShown} label="Interactions" theme={theme} />
       </div>
     </div>
   );

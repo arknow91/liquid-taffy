@@ -7,11 +7,20 @@
   justify-content: center;
   min-height: 100%;
   background: var(--color-viewport-bg);
+  /* The frame can change under a live stage (see the theme stage): the
+     ground crosses over on its own clock rather than snapping, so a fade
+     over it never lands on the wrong colour. */
+  transition: background-color 420ms var(--ease-out-strong);
   padding: var(--space-lg);
 }
 
+/* The two-frame stage fills the viewport: it pins its own switch to the top
+   edge and the interaction row to the foot, so it needs the whole height,
+   not a centred box. */
 .stage {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  min-height: 100vh;
 }

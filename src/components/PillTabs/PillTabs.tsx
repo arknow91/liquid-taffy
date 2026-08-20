@@ -12,14 +12,20 @@
  * property on its own root, so it stays self-contained when it is lifted out
  * of here — same contract as the liquid surfaces. */
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import gsap from "gsap";
 
+import { gooSfx } from "../liquid/sfx";
 import styles from "./PillTabs.module.css";
 
 export type PillTabItem<Id extends string = string> = {
   id: Id;
-  label: string;
+  /* Usually a word. Anything a tab can carry is allowed — a mark beside the
+     label, say — because the row measures whatever it renders. */
+  label: ReactNode;
+  /* Read by screen readers and by anything that needs the label as TEXT
+     (a plain string label is its own name). */
+  name?: string;
 };
 
 type PillTabsProps<Id extends string> = {
@@ -29,13 +35,16 @@ type PillTabsProps<Id extends string> = {
   /* Names the row for screen readers — the tabs alone say what they switch to,
      not what they are switching. */
   label: string;
+  /* The frame the row is standing on — light by default. Same contract as the
+     liquid surfaces': it only swaps the colour variables in the stylesheet. */
+  theme?: "light" | "dark";
 };
 
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function PillTabs<Id extends string>({ items, value, onChange, label }: PillTabsProps<Id>) {
+export function PillTabs<Id extends string>({ items, value, onChange, label, theme = "light" }: PillTabsProps<Id>) {
   const rowRef = useRef<HTMLDivElement | null>(null);
   const pillRef = useRef<HTMLSpanElement | null>(null);
   const tabRefs = useRef(new Map<Id, HTMLButtonElement>());
@@ -56,6 +65,17 @@ export function PillTabs<Id extends string>({ items, value, onChange, label }: P
 
     const slot = { x: target.offsetLeft, width: target.offsetWidth };
 
+    /* Already there. Any re-run that is NOT a change of slot — a parent
+       re-rendering, a fresh `items` array arriving with the same tabs in it —
+       must not fire the travel again: on the selected tab that read as the
+       pill bouncing in place under the pointer, which is not a thing the
+       selection did. */
+    const atX = Number(gsap.getProperty(pill, "x"));
+    const atWidth = Number(gsap.getProperty(pill, "width"));
+    if (pill.style.width !== "" && Math.abs(atX - slot.x) < 0.5 && Math.abs(atWidth - slot.width) < 0.5) {
+      return;
+    }
+
     /* First paint, or reduced motion: the pill is simply where it belongs.
        "First" is read off the element rather than a ref — StrictMode's
        throwaway mount reverts the inline styles the set wrote, and an armed ref
@@ -66,6 +86,10 @@ export function PillTabs<Id extends string>({ items, value, onChange, label }: P
     }
 
     const goingRight = slot.x > Number(gsap.getProperty(pill, "x"));
+    /* Only a real change of seat gets a voice: the bail-outs above cover the
+       first paint and any re-run that lands on the same slot, so a hover or a
+       parent re-render never makes a sound. */
+    gooSfx.play("slide", { frame: theme, direction: goingRight ? "up" : "down" });
 
     /* The previous trip dies here. Without it, a click landing inside the 620ms
        flight leaves both timelines alive and both writing width to the same
@@ -146,7 +170,7 @@ export function PillTabs<Id extends string>({ items, value, onChange, label }: P
   }, []);
 
   return (
-    <div className={styles.tabs} role="tablist" aria-label={label} ref={rowRef}>
+    <div className={styles.tabs} role="tablist" aria-label={label} data-theme={theme} ref={rowRef}>
       <span className={styles.pill} aria-hidden="true" ref={pillRef} />
       {items.map((item) => (
         <button
@@ -164,6 +188,7 @@ export function PillTabs<Id extends string>({ items, value, onChange, label }: P
               tabRefs.current.delete(item.id);
             }
           }}
+          aria-label={typeof item.label === "string" ? undefined : item.name}
           onClick={() => onChange(item.id)}
         >
           {item.label}

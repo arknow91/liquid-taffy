@@ -1,0 +1,24 @@
+/* The burst's stage: a layer sitting exactly on the panel's box, painted
+   BEFORE the panel's body in the anchor (see the hosts), so everything on it
+   is behind the dropdown — a piece exists only where it sticks out past the
+   silhouette. No overflow clipping: the flight lives outside the box. */
+
+.layer {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* One glyph piece. Everything that moves it is GSAP's; it idles hidden in
+   the middle of the layer, waiting for a full set. */
+.piece {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  opacity: 0;
+  visibility: hidden;
+  will-change: transform;
+}
+
+.piece svg {
+  display: block;
+}

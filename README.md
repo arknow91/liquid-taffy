@@ -1,11 +1,17 @@
 # liquid-taffy
 
-**Three liquid interactions you can grab, pull, and let snap back.**
+**Three liquid interactions you can grab, pull, and let snap back — on two frames.**
 
 One small plus-button, three ways for a menu to come out of it — and every surface on
 screen behaves like taffy: press and drag any of them and a liquid finger stretches out
 of the edge, follows your cursor against growing tension, and whips back into the rim
 when you let go.
+
+You land on both frames at once: a switch at the top carries the whole stage between a
+light room and a dark one. They are not two colour schemes over one design. On the light
+frame the family is monochrome and the liquid speaks for itself; the dark frame is where
+the pad's colour language lives — every drop carries its own hue, joints light in the
+colours of the two bodies making them, and a completed merge catches under the glyph.
 
 This is a reference implementation, not a package. It exists so you can read the source
 and see exactly how a production-quality gooey interaction is put together: the SVG
@@ -23,6 +29,23 @@ other"* but *"how does one surface feel like it has a body"*.
 
 All three share one trigger, one visual language, and — literally — one gesture engine.
 
+Both dropdowns are **multi-select**: a row keeps the menu open and takes a tick, its glyph
+spinning away as the tick grows out of it. Neighbouring selections stop being separate
+shapes — the radii between them collapse and they pour into one rounded run. Tick all
+four and the pad's glyphs take a bow from behind the panel.
+
+## The two frames
+
+| | Light | Dark |
+| --- | --- | --- |
+| **Colour** | none — the surfaces are ink on grey | one hue per body: circle red, cross blue-violet, square pink, triangle green |
+| **Joints** | the border stays the border | each body lights ITS OWN side of a contact, so a weld runs one hue into the other |
+| **Merge** | shows in the liquid alone | the welded glyphs catch their hue with a bloom |
+| **Voice** | a shallow dish of water — higher, brighter, drier | a deep vessel of syrup — lower, darker, wetter, longer |
+
+The speed dial's satellites sit in the pad's own compass — square left, triangle up,
+circle right, the cross in the middle as the trigger.
+
 ## Run it
 
 ```bash
@@ -30,8 +53,17 @@ npm install
 npm run dev
 ```
 
-Then click the plus. Also: **hold and drag** the plus, a satellite, or the open panel.
-That's the part you can't screenshot.
+Then click the plus. Also: **hold and drag** the plus, a satellite, or the open panel —
+that's the part you can't screenshot. Then switch the frame at the top and do it again:
+on the dark frame, drag one drop into another and watch the border between them light in
+both their colours at once.
+
+Every gesture also makes a sound (see below). To run it silent:
+
+```js
+import { gooSfx } from "./components/liquid/sfx";
+gooSfx.mute();          // or gooSfx.volume(0.3)
+```
 
 ## How it's made
 
@@ -100,19 +132,72 @@ Entrances overshoot and ring; exits are authored, not reversed — big surfaces 
 ~10% the wrong way (anticipate) before collapsing, and whatever lands on the button is
 absorbed with an impact squash. Colors never spring.
 
+### The joint light
+
+Drag one drop toward another and, a few pixels before they touch, the border between them
+starts telling you about it (`src/components/liquid/seam.ts`). Nothing is painted on top
+of the picture: the rim keeps being the rim, it just runs colour through the joint and
+back out again a little way along each drop.
+
+The engine reports **where** two rims meet, **how strongly**, and **whether they have
+genuinely crossed** rather than merely leaned. Three things in it are worth stealing:
+
+- **One lobe per BODY, not per pair.** A drop welded to one neighbour while its own rim
+  still leans on a third used to be painted by both joints — two washes on one border
+  sum, and the rim shimmered and dragged the neighbour's hue across it. Per body: every
+  drop shows its own hue on its own side, exactly once, and the hues meet in the seam.
+- **The weld is a latch, not a test.** It takes hold when the rims have genuinely crossed
+  and only lets go once they have visibly come apart — the gap has to travel five pixels
+  to change the answer. A single threshold sits exactly where the finger's beads breathe,
+  so rolling from one neighbour to the next flipped it several times per gesture and
+  every glyph wired to it blinked.
+- **A lobe is parked most of the lit radius off the joint**, not half of it. A joint
+  lights weakest — and so at its smallest radius — exactly when it first forms, and at
+  half the lobes overlapped, so each border opened wearing a mix of both colours.
+
+The light belongs to the dark frame. On the light frame the engine still runs — its
+report is not only paint; it is what the glyphs and the voice answer to — it simply has
+nothing to draw.
+
+### The voice
+
+Every sound is synthesized on the spot (`src/components/liquid/sfx.ts`), no samples, so a
+repeated gesture never sounds like one file played twice. It is one little machine shaped
+ten ways:
+
+- a **body** — an oscillator sliding between two pitches; the slide *is* the viscosity
+- a **throat** — a resonant lowpass sweeping with it: the hollow "bloop" of a bubble
+- a **wobble** — a slow LFO bent into the pitch, the ear's version of the springs
+- a **smack** — a whisper of filtered noise at the attack, the contact itself
+- an **envelope** — attack and decay, and these are the character controls: everything
+  else is a shape, the envelope is how hard and how long you press it
+
+A frame is described as **multipliers** on that shape, never a second set of numbers, so
+the two rooms cannot drift apart. Each of the dial's drops speaks in its own pitch, so a
+contact tells you *which* contact it is without looking.
+
 ## Project structure
 
 ```
 src/components/
-  InteractionStage/   the demo stage and the pill switcher
+  ThemeStage/         the two-frame stage: the switch, and the frame swap
+  InteractionStage/   the three surfaces and the pill switcher
   LiquidAdd/          anchored dropdown
   LiquidMorph/        morphing dropdown
   LiquidMenu/         speed dial (+ shared icons)
+  PillTabs/           the travelling pill, used by both switch rows
   liquid/
     stretch.ts        THE grab gesture — one engine for the family
+    seam.ts           the joint light: where two rims meet, and how much
     springs.ts        sampled spring curves
     goo.ts            rim calibration: solved thresholds per blur
     squircle.ts       Apple's continuous corner, as a path
+    hues.ts           the family's colour table — one per body, per frame
+    select.ts         multi-select geometry: how neighbours become one shape
+    sfx.ts            the voice — a tiny procedural synth, two characters
+    IconMorph.tsx     a glyph spinning away as its tick grows out of it
+    RowHover.tsx      one highlight travelling under a list
+    SelectionBurst.tsx  the full set, taking its bow
 ```
 
 Each interaction owns its choreography (open/close timelines, geometry, blur levels);
@@ -124,10 +209,21 @@ math — lives in `liquid/`.
 - `prefers-reduced-motion` collapses every animation to a static state change, including
   the press squash.
 - The trigger is a real `<button>` with `aria-expanded` / `aria-haspopup` /
-  `aria-controls`; menu items are `role="menuitem"` inside a `role="menu"`; closed menus
-  are `inert`.
+  `aria-controls`; the dial's items are `role="menuitem"` and the dropdowns'
+  multi-select rows are `role="menuitemcheckbox"` with `aria-checked`, inside a
+  `role="menu"`; closed menus are `inert`.
+- Colour is never the only carrier: on the dark frame a selected row is a tick *and* a
+  wash, a merge is a glyph change *and* a light, and the light frame carries the whole
+  thing with no colour at all.
 - `Escape` closes and returns focus to the trigger; a drag-release is distinguished from
   a click, so stretching something never accidentally activates it.
+
+## A note on the marks
+
+The four glyphs and the badge on the dark option refer to the PlayStation controller
+because that is the visual joke the dark frame is built on. PlayStation is a trademark of
+Sony Interactive Entertainment Inc. This project is an independent demo, is not
+affiliated with or endorsed by Sony, and is not sold.
 
 ## Credits
 

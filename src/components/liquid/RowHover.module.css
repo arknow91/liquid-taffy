@@ -1,0 +1,17 @@
+/* The travelling hover pill. Position, travel and squash are GSAP's (see
+   RowHover.tsx); this file owns only what it looks like — one row's height,
+   four rounded corners, and the host surface's own NEUTRAL tint
+   (--liquid-item-tint, from the dropdown's anchor): the hover carries no
+   colour of its own, the icons do. */
+
+.pill {
+  position: absolute;
+  top: 0;
+  z-index: 0;
+  border-radius: 9px;
+  background: var(--liquid-item-tint);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: transform;
+}

@@ -1,0 +1,51 @@
+/* The two-frame stage: the switch pinned at the top, the three interactions
+   filling the rest, and the fade that carries one frame into the other. */
+
+.shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-family);
+}
+
+/* The switch sits at the viewport's top edge, the way the interaction row
+   sits at its foot — the two never meet, whatever the window height — and
+   above the stage, so the frame change is something you WATCH happen on the
+   control you just pressed: its own colours cross over while the stage
+   behind it dips out and back. */
+.switchRow {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  padding: 6px;
+}
+
+.darkLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* The mark rides at the label's cap height — small, to the right of the
+   word, a badge rather than a second label. No ring: the toggle already has
+   a border, and a second one around the mark read as a broken one. */
+.mark {
+  display: block;
+  width: 15px;
+  height: auto;
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}

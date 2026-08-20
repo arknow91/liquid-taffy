@@ -9,16 +9,22 @@ import {
 import gsap from "gsap";
 import { CustomEase } from "gsap/CustomEase";
 
-import { CircleIcon, PlusIcon, SquareIcon, TriangleIcon } from "../LiquidMenu/icons";
+import { ICON_PATHS, PlusIcon } from "../LiquidMenu/icons";
 import { GOO_RIM_THRESHOLDS, gooThreshold, setGooBlur } from "../liquid/goo";
+import { SHAPE_HUES, motifHue, neonGlow, seamHue } from "../liquid/hues";
+import { createLiquidSeam, type LiquidSeam, type SeamJoint } from "../liquid/seam";
 import { HOUSE_SPRING_POINTS, POP_SPRING_POINTS, springEase } from "../liquid/springs";
+import { IconMorph } from "../liquid/IconMorph";
+import { RowHover } from "../liquid/RowHover";
+import { rowSelectionStyle } from "../liquid/select";
+import { gooSfx } from "../liquid/sfx";
+import { SelectionBurst } from "../liquid/SelectionBurst";
 import { squirclePath } from "../liquid/squircle";
 import {
   GRAB_CHAIN,
   createLiquidStretch,
   prefersReducedMotion,
   type LiquidStretch,
-  type StretchTarget,
 } from "../liquid/stretch";
 import styles from "./LiquidAdd.module.css";
 
@@ -34,14 +40,14 @@ const BUTTON_SIZE = 32;
 
 /* The dropdown CENTERED above the button, 14px over its top edge. */
 const PANEL_WIDTH = 141;
-const PANEL_HEIGHT = 104; /* 2×7 padding + 3 rows × 30 */
+const PANEL_HEIGHT = 134; /* 2×7 padding + 4 rows × 30 */
 const PANEL_GAP = 14;
 /* Button center in the panel's own coordinates — the drop grows out of it. */
 const PANEL_ORIGIN_X = PANEL_WIDTH / 2; /* 70.5 */
-const PANEL_ORIGIN_Y = PANEL_HEIGHT + PANEL_GAP + BUTTON_SIZE / 2; /* 134 */
+const PANEL_ORIGIN_Y = PANEL_HEIGHT + PANEL_GAP + BUTTON_SIZE / 2; /* 164 */
 
 /* Resting scale: the shrunk panel must hide inside the 16px-radius circle.
-   Farthest corner ≈ √(70.5² + 134²) ≈ 151px from the origin → 151 × 0.08 ≈ 12. */
+   Farthest corner ≈ √(70.5² + 164²) ≈ 179px from the origin → 179 × 0.08 ≈ 14. */
 const PANEL_REST_SCALE = 0.08;
 
 /* Blur discipline. The dropdown grows out of (and dives into) the button it
@@ -67,17 +73,64 @@ const TRIGGER_Y = 204; /* button top edge */
 const TRIGGER_CX = TRIGGER_X + BUTTON_SIZE / 2;
 const TRIGGER_CY = TRIGGER_Y + BUTTON_SIZE / 2;
 
+/* The PlayStation four — circle, cross, triangle, square — each wearing its
+   button's hue (liquid/hues.ts), the
+   same language the speed dial's satellites speak: which shape the finger
+   has reached is the one thing the light is for. */
 const ITEMS = [
-  { id: "add-circle", label: "Circle", Icon: CircleIcon },
-  { id: "add-square", label: "Square", Icon: SquareIcon },
-  { id: "add-triangle", label: "Triangle", Icon: TriangleIcon },
+  { id: "add-circle", label: "Circle", path: ICON_PATHS.circle, hue: SHAPE_HUES.circle },
+  { id: "add-cross", label: "Cross", path: ICON_PATHS.cross, hue: SHAPE_HUES.cross },
+  { id: "add-triangle", label: "Triangle", path: ICON_PATHS.triangle, hue: SHAPE_HUES.triangle },
+  { id: "add-square", label: "Square", path: ICON_PATHS.square, hue: SHAPE_HUES.square },
 ] as const;
 
 const PANEL_RADIUS = 16;
 
-export function LiquidAdd() {
+/* The panel's rect in goo-canvas coordinates — the seam engine measures the
+   pulled finger against this rounded wall. */
+const PANEL_GOO_X = TRIGGER_CX - PANEL_WIDTH / 2;
+const PANEL_GOO_Y = TRIGGER_Y - PANEL_GAP - PANEL_HEIGHT;
+const PANEL_PADDING = 7;
+const ROW_HEIGHT = 30;
+
+/* Which row a joint belongs to: the one whose center is nearest the contact
+   point. Rows are full-width, so their vertical centers are the whole
+   difference — a touch along the panel's bottom edge lands on the last row, a
+   touch climbing a side edge walks up through the stack. The panel only ever
+   TRANSLATES while a grab is live, and its lean tops out around 6px — less
+   than a quarter of a row — so the resting geometry is close enough to name
+   the row without chasing the transform. */
+function nearestRow(y: number) {
+  const first = PANEL_GOO_Y + PANEL_PADDING + ROW_HEIGHT / 2;
+  return Math.min(ITEMS.length - 1, Math.max(0, Math.round((y - first) / ROW_HEIGHT)));
+}
+
+/* The lit stretch of border at rest — the engine drives the real one. */
+const SEAM_RADIUS = 20;
+
+/* Two layers are enough here: only one pair exists (trigger|panel), so the
+   second is the spare that lets a re-contact light up while the previous
+   light is still dying. */
+const SEAM_LAYERS = [0, 1];
+
+export type LiquidAddTheme = "light" | "dark";
+
+export interface LiquidAddProps {
+  /* The frame the button is standing on — light by default. Same contract as
+     the speed dial's: it only swaps the colour variables in the stylesheet;
+     every spring, blur and threshold is the same one. */
+  theme?: LiquidAddTheme;
+}
+
+export function LiquidAdd({ theme = "light" }: LiquidAddProps = {}) {
   const menuId = useId();
   const gooId = `liquid-add-goo-${useId().replace(/:/g, "")}`;
+  /* The seam's three parts: a filter that keeps ONLY the rim, a mask made of
+     it, and the gradient the rim is repainted with through the joint. */
+  const blobsId = `${gooId}-blobs`;
+  const rimOnlyId = `${gooId}-rim`;
+  const rimMaskId = `${gooId}-mask`;
+  const seamGradientId = `${gooId}-seam`;
   const rootRef = useRef<HTMLDivElement>(null);
   const gooRef = useRef<SVGSVGElement>(null);
   const bodiesRef = useRef<HTMLDivElement>(null);
@@ -88,17 +141,55 @@ export function LiquidAdd() {
   const panelBodyRef = useRef<SVGSVGElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  /* The rows' CONTENT (icon + label), animated separately from the rows: the
+     entry stagger rides these, while the buttons — and the selection washes
+     drawn on them — stay put inside the panel and scale with it as ONE mass.
+     Staggering the buttons themselves tore a full-height selection run into
+     four pieces with gaps between them for the length of every bounce. */
+  const itemInnerRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const blurRef = useRef<SVGFEGaussianBlurElement>(null);
   const rimEdgeRef = useRef<SVGFEColorMatrixElement>(null);
   const innerEdgeRef = useRef<SVGFEColorMatrixElement>(null);
+  const maskBlurRef = useRef<SVGFEGaussianBlurElement>(null);
+  const maskRimEdgeRef = useRef<SVGFEColorMatrixElement>(null);
+  const maskInnerEdgeRef = useRef<SVGFEColorMatrixElement>(null);
+  const seamGradientRefs = useRef<(SVGRadialGradientElement | null)[]>([]);
+  const seamPaintRefs = useRef<(SVGRectElement | null)[]>([]);
+  const seamStopRefs = useRef<(SVGStopElement | null)[][]>([]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const iconRef = useRef<HTMLSpanElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const stretchRef = useRef<LiquidStretch | null>(null);
+  /* The row-press squish, kept on a handle. It tweens the SAME property the
+     open and close runs do (the panel's scale) and rings for half a second,
+     so left loose it can still be writing while a toggle is trying to pour
+     or collapse — two owners, one property, and whichever ticks last wins
+     the frame. */
+  const pressTweenRef = useRef<gsap.core.Tween | null>(null);
+  const seamRef = useRef<LiquidSeam | null>(null);
+  /* Whose border the grab is currently stretching — the finger's beads belong
+     to it, so they cannot light a joint against their own body. */
+  const grabbedOwnerRef = useRef("trigger");
+  /* Which row each seam layer is painted for, and which row's glyph is lit —
+     so styles are written only on a change, never every tick. */
+  const layerRowRef = useRef<(number | null)[]>([]);
+  const litRowRef = useRef<number | null>(null);
   /* Mirrors isOpen for the stretch engine's host callbacks, which are created
      once and must not close over a stale render's state. */
   const isOpenRef = useRef(false);
+  /* Same reason: the voice asks which frame it is speaking in, and the host
+     callbacks outlive the render that made them. */
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const [isOpen, setIsOpen] = useState(false);
+  /* Multi-select: which rows are ticked. Persists across open/close — a
+     selection is a state, not a gesture. */
+  const [selected, setSelected] = useState<boolean[]>(() => ITEMS.map(() => false));
+  /* Which row the pointer is on — the travelling hover's only input. */
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  /* Each row's motif hue on the frame we are standing on — null on the
+     light frame, which carries no PlayStation colour. */
+  const rowHues = ITEMS.map((item) => motifHue(item.hue, theme));
 
   const getTriggerBits = useCallback(
     () => [blobTriggerRef.current, triggerBodyRef.current, iconRef.current],
@@ -110,27 +201,124 @@ export function LiquidAdd() {
     [],
   );
 
-  /* Blur + rim thresholds are ONE setting — see liquid/goo.ts. */
-  const applyGooBlur = useCallback(
-    (blur: number, tl?: gsap.core.Timeline, at = 0) =>
-      setGooBlur(
-        { blur: blurRef.current, rim: rimEdgeRef.current, inner: innerEdgeRef.current },
-        blur,
-        tl,
-        at,
-      ),
-    [],
-  );
+  /* Blur + rim thresholds are ONE setting — see liquid/goo.ts. The mask
+     carves its rim out of the same blur with the same pair of thresholds — a
+     mask one setting behind would let the colour slip off the border it is
+     supposed to be painted on. */
+  const applyGooBlur = useCallback((blur: number, tl?: gsap.core.Timeline, at = 0) => {
+    setGooBlur(
+      { blur: blurRef.current, rim: rimEdgeRef.current, inner: innerEdgeRef.current },
+      blur,
+      tl,
+      at,
+    );
+    setGooBlur(
+      { blur: maskBlurRef.current, rim: maskRimEdgeRef.current, inner: maskInnerEdgeRef.current },
+      blur,
+      tl,
+      at,
+    );
+  }, []);
+
+  /* Exactly ONE shadow at any moment — the speed dial's rule. The goo casts
+     its own while it owns the picture; the crisp bodies carry theirs on their
+     container. At a handoff the bodies snap visible UNDER the still-opaque
+     goo, so for the goo's fade both would cast — a doubled shadow that pulses
+     dark. The goo's shadow switches off in the SAME frame the bodies snap on. */
+  const setGooShadow = useCallback((on: boolean) => {
+    if (gooRef.current) {
+      gooRef.current.style.filter = on ? "var(--liquid-goo-shadow)" : "none";
+    }
+  }, []);
 
   const liquidOn = useCallback(
     (blur: number) => {
+      setGooShadow(true);
       gsap.set(gooRef.current, { autoAlpha: 1 });
       gsap.set(bodiesRef.current, { autoAlpha: 0 });
       applyGooBlur(blur);
       rootRef.current?.setAttribute("data-liquid", "");
     },
-    [applyGooBlur],
+    [applyGooBlur, setGooShadow],
   );
+
+  /* The neon catch, cleared: a row lit by a completed merge lets go the
+     moment the picture is no longer the gesture's. */
+  const clearRowNeon = useCallback(() => {
+    litRowRef.current = null;
+    itemRefs.current.forEach((item) => {
+      if (item) {
+        item.style.color = "";
+        item.style.filter = "";
+      }
+    });
+  }, []);
+
+  /* The engines are created ONCE and live in refs, so any behaviour handed to
+     them directly would be frozen at the first render — stale after a theme
+     change. These refs are reassigned EVERY render, and the engines call
+     through them, so the newest code always answers. */
+
+  /* The joint takes the hue of the ROW nearest the touch — the dropdown's
+     reading of the dial's satellite colours. Only ever one pair here
+     (trigger|panel), so which row was reached is the whole message. */
+  const seamPaintFnRef = useRef<(index: number, at: { x: number; y: number }) => void>(() => {});
+  seamPaintFnRef.current = (index, at) => {
+    const stops = seamStopRefs.current[index];
+    if (!stops) {
+      return;
+    }
+    const row = nearestRow(at.y);
+    layerRowRef.current[index] = row;
+    /* Light: no motif, so the joint falls back to the stylesheet's own seam
+       colour and reads as one uniform light instead of naming a row. */
+    const hue = motifHue(ITEMS[row].hue, theme);
+    const paint = hue === null ? "var(--liquid-seam)" : seamHue(hue, theme);
+    stops.forEach((stop) => stop?.setAttribute("stop-color", paint));
+  };
+
+  /* The joint can roll along the panel's edge without ever changing pair, so
+     the hue follows the nearest row while lit — repainted only when the
+     answer genuinely changes, so the colour snaps exactly at a row boundary
+     and nowhere else. */
+  const seamRepaintFnRef = useRef<(index: number, at: { x: number; y: number }) => void>(() => {});
+  seamRepaintFnRef.current = (index, at) => {
+    if (layerRowRef.current[index] !== nearestRow(at.y)) {
+      seamPaintFnRef.current(index, at);
+    }
+  };
+
+  /* Neon rows. A touch shows ONLY the border gradient. Once the merge
+     completes (the engine's `joined`), the nearest row catches its own hue
+     with a soft bloom — glyph and label together, since a row IS its label.
+     Styles are written only on a state change; the CSS transition breathes. */
+  const jointsFnRef = useRef<(joints: SeamJoint[]) => void>(() => {});
+  jointsFnRef.current = (joints) => {
+    let lit: number | null = null;
+    joints.forEach((joint) => {
+      if (!joint.joined) {
+        return;
+      }
+      /* A fully swallowed contact reports no position — the light stays on
+         whatever row it last named, through the deepest point of the merge. */
+      lit = joint.y !== undefined ? nearestRow(joint.y) : litRowRef.current;
+    });
+
+    if (lit === litRowRef.current) {
+      return;
+    }
+    litRowRef.current = lit;
+    itemRefs.current.forEach((item, index) => {
+      if (!item) {
+        return;
+      }
+      /* No motif on the light frame: a merge shows in the border alone. */
+      const hue = motifHue(ITEMS[index].hue, theme);
+      const on = hue !== null && index === lit;
+      item.style.color = on ? hue : "";
+      item.style.filter = on && hue ? neonGlow(hue) : "";
+    });
+  };
 
   useEffect(() => {
     gsap.set(getPanelTrio(), {
@@ -139,16 +327,25 @@ export function LiquidAdd() {
       transformOrigin: `${PANEL_ORIGIN_X}px ${PANEL_ORIGIN_Y}px`,
     });
     gsap.set([panelBodyRef.current, panelRef.current], { autoAlpha: 0 });
-    gsap.set(itemRefs.current, { autoAlpha: 0 });
+    gsap.set(itemInnerRefs.current, { autoAlpha: 0 });
     gsap.set(blobTriggerRef.current, { transformOrigin: "50% 50%" });
     gsap.set(grabChainRefs.current, { scale: 0, transformOrigin: "50% 50%" });
     gsap.set(gooRef.current, { autoAlpha: 0 });
     gsap.set(bodiesRef.current, { autoAlpha: 1 });
 
+    /* The engine runs on BOTH frames — see the speed dial for why: its
+       report is not only paint, and the light frame hides the wash in the
+       stylesheet rather than by going blind. */
+    seamRef.current?.start();
+
     return () => {
       timelineRef.current?.kill();
+      pressTweenRef.current?.kill();
       stretchRef.current?.kill();
+      seamRef.current?.kill();
     };
+    /* Mount only — see the speed dial: a re-run re-parks the panel at rest
+       while `isOpen` still says open. */
   }, [getPanelTrio]);
 
   const setStaticState = useCallback(
@@ -160,15 +357,19 @@ export function LiquidAdd() {
         y: 0,
       });
       gsap.set([panelBodyRef.current, panelRef.current], { autoAlpha: open ? 1 : 0 });
+      panelRef.current?.removeAttribute("data-wash");
+      gsap.set(panelRef.current, { "--sel-alpha": 1 });
       gsap.set(blobPanelRef.current, { autoAlpha: 1 });
-      gsap.set(itemRefs.current, { autoAlpha: open ? 1 : 0, y: 0 });
+      gsap.set(itemInnerRefs.current, { autoAlpha: open ? 1 : 0, y: 0 });
       gsap.set(getTriggerBits(), { scale: 1, x: 0, y: 0 });
       gsap.set(iconRef.current, { rotation: open ? 135 : 0 });
       gsap.set(gooRef.current, { autoAlpha: 0 });
       gsap.set(bodiesRef.current, { autoAlpha: 1 });
+      clearRowNeon();
       rootRef.current?.removeAttribute("data-liquid");
+      rootRef.current?.removeAttribute("data-grab");
     },
-    [getPanelTrio, getTriggerBits],
+    [clearRowNeon, getPanelTrio, getTriggerBits],
   );
 
   const clearInlineFills = useCallback(() => {
@@ -189,12 +390,58 @@ export function LiquidAdd() {
       triggerStretchBits: () => [blobTriggerRef.current, triggerBodyRef.current],
       triggerIcon: () => iconRef.current,
       chain: () => grabChainRefs.current,
-      grabbedBlobs: (target: StretchTarget) => [
-        target === "trigger" ? blobTriggerRef.current : blobPanelRef.current,
-      ],
       auxTrio: () => getPanelTrio(),
       liquidOn: (target) => {
+        grabbedOwnerRef.current = target === "trigger" ? "trigger" : "panel";
         liquidOn(GOO_BLUR_GRAB);
+        /* data-grab gates the seam: this light is a gesture's feedback, not a
+           state the component wears at rest. */
+        rootRef.current?.setAttribute("data-grab", "");
+        gooSfx.play("grab", { frame: themeRef.current });
+
+        /* A grab that lands MID-FLIGHT takes the picture over: the open/close
+           run would otherwise hand the picture back to the crisp bodies a few
+           hundred milliseconds into the gesture and take the liquid with it.
+           Killed, then walked to wherever it was heading, so nothing is
+           stranded half-open. */
+        if (timelineRef.current?.isActive()) {
+          timelineRef.current.kill();
+          const settled = isOpenRef.current;
+          /* ON the component's own timeline, not as loose tweens. openMenu and
+             closeMenu begin by killing exactly this reference; tweens started
+             outside it survive that kill and keep writing toward the state the
+             interrupted run was heading for — which is how a click that
+             reopened mid-close ended with the panel set visible and then
+             dragged back to nothing a tenth of a second later. */
+          const settle = gsap.timeline();
+          timelineRef.current = settle;
+          settle.to(
+            getPanelTrio(),
+            {
+              scale: settled ? 1 : PANEL_REST_SCALE,
+              rotation: settled ? 0 : -3,
+              duration: 0.16,
+              ease: OUT_STRONG,
+              overwrite: "auto",
+            },
+            0,
+          );
+          settle.to(
+            [panelBodyRef.current, panelRef.current],
+            { autoAlpha: settled ? 1 : 0, duration: 0.12, ease: OUT_STRONG, overwrite: "auto" },
+            0,
+          );
+          settle.to(
+            itemInnerRefs.current,
+            { autoAlpha: settled ? 1 : 0, y: 0, duration: 0.12, ease: OUT_STRONG, overwrite: "auto" },
+            0,
+          );
+          settle.to(
+            iconRef.current,
+            { rotation: settled ? 135 : 0, duration: 0.16, ease: OUT_STRONG, overwrite: "auto" },
+            0,
+          );
+        }
         /* The shrunk panel parks INSIDE the circle while the menu is closed —
            and it must sit the grab out: it cannot ride the trigger's lean, so
            left in the goo it pokes out of the moving silhouette as a hump.
@@ -206,13 +453,22 @@ export function LiquidAdd() {
         });
       },
       handoff: (tl, at) => {
+        gooSfx.play("release", { frame: themeRef.current });
+        /* The crisp bodies SNAP on underneath the still-opaque goo — the two
+           pictures are identical, so nothing changes on screen — and only the
+           goo fades. The goo's shadow hands over to the bodies' in the same
+           frame, so the shadow never doubles during the fade. */
+        tl.set(bodiesRef.current, { autoAlpha: 1 }, at);
+        tl.call(() => setGooShadow(false), undefined, at);
         tl.to(gooRef.current, { autoAlpha: 0, duration: 0.15, ease: "power1.out" }, at);
-        tl.to(bodiesRef.current, { autoAlpha: 1, duration: 0.15, ease: "power1.out" }, at);
         applyGooBlur(GOO_BLUR_REST, tl, at + 0.16);
+        tl.call(() => setGooShadow(true), undefined, at + 0.16);
         tl.call(
           () => {
             rootRef.current?.removeAttribute("data-liquid");
+            rootRef.current?.removeAttribute("data-grab");
             clearInlineFills();
+            clearRowNeon();
           },
           undefined,
           at + 0.15,
@@ -222,8 +478,85 @@ export function LiquidAdd() {
   }
   const stretch = stretchRef.current;
 
+  if (seamRef.current === null) {
+    seamRef.current = createLiquidSeam({
+      anchor: () => rootRef.current,
+      parts: () => [
+        { blob: blobTriggerRef.current, owner: "trigger" },
+        {
+          blob: blobPanelRef.current,
+          owner: "panel",
+          rect: {
+            x: PANEL_GOO_X,
+            y: PANEL_GOO_Y,
+            width: PANEL_WIDTH,
+            height: PANEL_HEIGHT,
+            radius: PANEL_RADIUS,
+          },
+        },
+        ...grabChainRefs.current.map((blob) => ({ blob, owner: grabbedOwnerRef.current })),
+      ],
+      layers: () =>
+        SEAM_LAYERS.map((_, index) => ({
+          gradient: seamGradientRefs.current[index] ?? null,
+          paint: seamPaintRefs.current[index] ?? null,
+        })),
+      paint: (index, _owner, at) => seamPaintFnRef.current(index, at),
+      repaint: (index, _owner, at) => seamRepaintFnRef.current(index, at),
+      joints: (joints) => jointsFnRef.current(joints),
+    });
+  }
+
+  /* A press on a row is felt by the WHOLE dropdown: the liquid mass gives a
+     touch — sinking toward the button it hangs from — and springs back to
+     its own shape the moment the finger lets go. Crisp transforms, no goo:
+     the deformation is a couple of percent, and the border under it never
+     changes. */
+  const pressPanel = useCallback(() => {
+    if (prefersReducedMotion()) {
+      return;
+    }
+    pressTweenRef.current?.kill();
+    pressTweenRef.current = gsap.to(getPanelTrio(), {
+      scaleX: 0.985,
+      scaleY: 0.96,
+      duration: 0.12,
+      ease: OUT_STRONG,
+      overwrite: "auto",
+    });
+  }, [getPanelTrio]);
+
+  const releasePanelPress = useCallback(() => {
+    if (prefersReducedMotion()) {
+      return;
+    }
+    pressTweenRef.current?.kill();
+    pressTweenRef.current = gsap.to(getPanelTrio(), {
+      scaleX: 1,
+      scaleY: 1,
+      duration: 0.55,
+      ease: SPRING,
+      overwrite: "auto",
+    });
+  }, [getPanelTrio]);
+
+  const handleItemPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      pressPanel();
+      /* The window backstop, not the row: the release must land wherever the
+         pointer lets go, even far outside the button. */
+      window.addEventListener("pointerup", releasePanelPress, { once: true });
+      window.addEventListener("pointercancel", releasePanelPress, { once: true });
+    },
+    [pressPanel, releasePanelPress],
+  );
+
   const openMenu = useCallback(() => {
     timelineRef.current?.kill();
+    pressTweenRef.current?.kill();
     stretch.kill();
     isOpenRef.current = true;
     setIsOpen(true);
@@ -234,12 +567,24 @@ export function LiquidAdd() {
     }
 
     clearInlineFills();
+    clearRowNeon();
+    gooSfx.play("open", { frame: theme });
     liquidOn(GOO_BLUR_ACTIVE);
+    rootRef.current?.removeAttribute("data-grab");
     const triggerBits = getTriggerBits();
     const tl = gsap.timeline();
     timelineRef.current = tl;
 
     tl.set([panelBodyRef.current, panelRef.current], { autoAlpha: 1 }, 0);
+    /* A run that was already ticked waits for its panel to ARRIVE. Lighting
+       it from the first frame means the wash rides the whole pour — stretched
+       and skewed with the shape it is painted on — and the panel appears to
+       open already-used. It comes up once the shape has landed, so what you
+       see is the dropdown, and then what is in it. */
+    tl.call(() => panelRef.current?.setAttribute("data-wash", ""), undefined, 0);
+    tl.set(panelRef.current, { "--sel-alpha": 0 }, 0);
+    tl.to(panelRef.current, { "--sel-alpha": 1, duration: 0.22, ease: "power2.out" }, 0.2);
+    tl.call(() => panelRef.current?.removeAttribute("data-wash"), undefined, 0.44);
     /* Re-arm the panel blob a closed-state grab may have hidden. */
     tl.set(blobPanelRef.current, { autoAlpha: 1 }, 0);
     tl.set(getPanelTrio(), { x: 0, y: 0 }, 0);
@@ -264,9 +609,17 @@ export function LiquidAdd() {
     tl.to(trio, { scaleX: 1, duration: 0.26, ease: POP }, 0.2);
 
     /* Rows condense bottom-up — the direction the drop grew. */
-    tl.fromTo(
-      itemRefs.current,
-      { autoAlpha: 0, y: 12 },
+    /* The rows RISE only when they are actually away. A hard fromTo blanks
+       them first, and on a reopen that interrupts a close — the rows still
+       half on screen — that reads as the panel opening EMPTY and standing
+       there until the entry beat comes round. Cold open: they are at nothing
+       anyway, so the authored rise is unchanged. Warm: they simply finish
+       coming up from wherever the interrupted close left them. */
+    if (Number(gsap.getProperty(itemInnerRefs.current[0], "opacity")) < 0.05) {
+      tl.set(itemInnerRefs.current, { autoAlpha: 0, y: 12 }, 0);
+    }
+    tl.to(
+      itemInnerRefs.current,
       {
         autoAlpha: 1,
         y: 0,
@@ -277,16 +630,21 @@ export function LiquidAdd() {
       0.2,
     );
 
-    /* Hand back to the crisp picture at full blur — no rim thinning. */
+    /* Hand back to the crisp picture at full blur — no rim thinning. The
+       bodies snap on UNDER the still-opaque goo; the shadow changes hands in
+       the same frame (see setGooShadow). */
+    tl.set(bodiesRef.current, { autoAlpha: 1 }, 0.47);
+    tl.call(() => setGooShadow(false), undefined, 0.47);
     tl.to(gooRef.current, { autoAlpha: 0, duration: 0.16, ease: "power1.out" }, 0.47);
-    tl.to(bodiesRef.current, { autoAlpha: 1, duration: 0.16, ease: "power1.out" }, 0.47);
     applyGooBlur(GOO_BLUR_REST, tl, 0.64);
+    tl.call(() => setGooShadow(true), undefined, 0.64);
     tl.call(() => rootRef.current?.removeAttribute("data-liquid"), undefined, 0.63);
-  }, [applyGooBlur, clearInlineFills, getPanelTrio, getTriggerBits, liquidOn, setStaticState, stretch]);
+  }, [applyGooBlur, clearInlineFills, clearRowNeon, getPanelTrio, getTriggerBits, liquidOn, setGooShadow, setStaticState, stretch]);
 
   const closeMenu = useCallback(
     (fromTrigger: boolean) => {
       timelineRef.current?.kill();
+      pressTweenRef.current?.kill();
       stretch.kill();
       isOpenRef.current = false;
       setIsOpen(false);
@@ -297,13 +655,20 @@ export function LiquidAdd() {
       }
 
       clearInlineFills();
+      clearRowNeon();
+      gooSfx.play("close", { frame: theme });
       liquidOn(GOO_BLUR_ACTIVE);
+      rootRef.current?.removeAttribute("data-grab");
       const triggerBits = getTriggerBits();
       const tl = gsap.timeline();
       timelineRef.current = tl;
 
       /* Re-arm the panel blob a closed-state grab may have hidden. */
       tl.set(blobPanelRef.current, { autoAlpha: 1 }, 0);
+      /* The selection wash goes out FIRST — the panel must be plain before it
+         folds into the circle. */
+      tl.call(() => panelRef.current?.setAttribute("data-wash", ""), undefined, 0);
+      tl.to(panelRef.current, { "--sel-alpha": 0, duration: 0.11, ease: "power2.in" }, 0);
       tl.to(iconRef.current, { rotation: 0, duration: 0.22, ease: SPRING }, 0);
       tl.set([blobTriggerRef.current, triggerBodyRef.current], { rotation: 0 }, 0);
       tl.to(triggerBits, { x: 0, y: 0, duration: 0.1, ease: OUT_STRONG }, 0);
@@ -321,7 +686,7 @@ export function LiquidAdd() {
       tl.to(trio, { scaleX: 0.35, duration: 0.08, ease: MORPH }, 0);
       tl.to(trio, { scaleY: 0.35, rotation: -3, duration: 0.08, ease: MORPH }, 0.015);
       tl.to(
-        itemRefs.current,
+        itemInnerRefs.current,
         { autoAlpha: 0, y: 4, duration: 0.05, ease: "power1.in", stagger: 0.005 },
         0,
       );
@@ -346,12 +711,14 @@ export function LiquidAdd() {
         0.14,
       );
 
+      tl.set(bodiesRef.current, { autoAlpha: 1 }, 0.22);
+      tl.call(() => setGooShadow(false), undefined, 0.22);
       tl.to(gooRef.current, { autoAlpha: 0, duration: 0.1, ease: "power1.out" }, 0.22);
-      tl.to(bodiesRef.current, { autoAlpha: 1, duration: 0.1, ease: "power1.out" }, 0.22);
       applyGooBlur(GOO_BLUR_REST, tl, 0.33);
+      tl.call(() => setGooShadow(true), undefined, 0.33);
       tl.call(() => rootRef.current?.removeAttribute("data-liquid"), undefined, 0.32);
     },
-    [applyGooBlur, clearInlineFills, getPanelTrio, getTriggerBits, liquidOn, setStaticState, stretch],
+    [applyGooBlur, clearInlineFills, clearRowNeon, getPanelTrio, getTriggerBits, liquidOn, setGooShadow, setStaticState, stretch],
   );
 
   const toggleMenu = useCallback(() => {
@@ -376,10 +743,18 @@ export function LiquidAdd() {
     [stretch],
   );
 
-  /* Grabbing the panel: same sponge, measured from the grab point itself. */
+  /* Grabbing the panel: same sponge, measured from the grab point itself.
+     But NOT from a row — a press there is a selection gesture: the pointer
+     capture a grab takes would retarget the click to the panel and the row
+     would never hear it (which is exactly what made rows feel dead: press,
+     a slight lean, release, nothing). Rows press; the panel's own padding
+     grabs. */
   const handlePanelPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!isOpen) {
+        return;
+      }
+      if ((event.target as Element).closest('[role="menuitemcheckbox"]')) {
         return;
       }
       const anchorRect = rootRef.current?.getBoundingClientRect();
@@ -399,12 +774,36 @@ export function LiquidAdd() {
     [stretch],
   );
 
-  const handleItemClick = useCallback(() => {
-    if (stretch.consumeClick()) {
+  /* A row click TOGGLES its tick — the menu stays up: multi-select means
+     the conversation is not over after one answer. Outside click and Escape
+     still close. */
+  const handleItemClick = useCallback(
+    (index: number) => {
+      if (stretch.consumeClick()) {
+        return;
+      }
+      gooSfx.play("tick", { frame: theme });
+      setSelected((prev) => prev.map((on, at) => (at === index ? !on : on)));
+    },
+    [stretch],
+  );
+
+  /* A panel can open UNDER a cursor that never moves — no enter event is
+     ever fired, so the travelling pill would sit dark under a row whose
+     glyph is already lit by CSS :hover. The DOM knows who is hovered; ask
+     it once, the moment the rows exist. */
+  useEffect(() => {
+    if (!isOpen) {
+      setHoveredRow(null);
       return;
     }
-    closeMenu(false);
-  }, [closeMenu, stretch]);
+    const row = panelRef.current?.querySelector<HTMLElement>(
+      '[role="menuitemcheckbox"]:hover',
+    );
+    if (row?.dataset.rowIndex) {
+      setHoveredRow(Number(row.dataset.rowIndex));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -434,7 +833,22 @@ export function LiquidAdd() {
   }, [closeMenu, isOpen]);
 
   return (
-    <div ref={rootRef} className={styles.anchor}>
+    <div ref={rootRef} className={styles.anchor} data-theme={theme}>
+      {/* Layer 0: the full-set burst — painted BEFORE every body, so its
+          glyph pieces fly BEHIND the dropdown: the panel itself is the
+          curtain they leap from and dive back behind. */}
+      <SelectionBurst
+        active={selected.every(Boolean)}
+        open={isOpen}
+        theme={theme}
+        panel={{
+          left: -(PANEL_WIDTH - BUTTON_SIZE) / 2,
+          bottom: 46,
+          width: PANEL_WIDTH,
+          height: PANEL_HEIGHT,
+        }}
+      />
+
       {/* Layer 1: crisp bodies — the resting picture. */}
       <div ref={bodiesRef} className={styles.bodies} aria-hidden="true">
         <div ref={triggerBodyRef} className={styles.triggerBody} />
@@ -460,7 +874,7 @@ export function LiquidAdd() {
         width={GOO_WIDTH}
         height={GOO_HEIGHT}
         viewBox={`0 0 ${GOO_WIDTH} ${GOO_HEIGHT}`}
-        style={{ filter: "drop-shadow(0 3px 6.25px rgba(0, 0, 0, 0.08))" }}
+        style={{ filter: "var(--liquid-goo-shadow)" }}
         aria-hidden="true"
         focusable="false"
       >
@@ -510,46 +924,157 @@ export function LiquidAdd() {
               values={gooThreshold(GOO_RIM_THRESHOLDS[GOO_BLUR_REST][1])}
               result="inner"
             />
-            <feFlood floodColor="#dadada" result="rimColor" />
+            {/* The rim's colour is the theme's, read off the anchor: the
+                flood has to be the SAME solid the crisp CSS border wears, or
+                the two pictures the component crossfades between would not
+                match. */}
+            <feFlood style={{ floodColor: "var(--liquid-rim)" }} result="rimColor" />
             <feComposite in="rimColor" in2="goo" operator="in" result="rimFull" />
             <feMerge>
               <feMergeNode in="rimFull" />
               <feMergeNode in="inner" />
             </feMerge>
           </filter>
+
+          {/* The SAME chain again, and it has to stay the same: one blur, one
+              pair of thresholds, so the sliver this carves is the exact sliver
+              the goo paints. Here the sliver is flooded WHITE and the interior
+              is dropped, which makes it a mask of the border and nothing else
+              — the hue can then be laid over the rim without ever spilling
+              onto the drop's face or the frame behind it. */}
+          <filter
+            id={rimOnlyId}
+            filterUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width={GOO_WIDTH}
+            height={GOO_HEIGHT}
+            colorInterpolationFilters="sRGB"
+          >
+            <feGaussianBlur
+              ref={maskBlurRef}
+              in="SourceGraphic"
+              stdDeviation={GOO_BLUR_REST}
+              result="blur"
+            />
+            <feColorMatrix
+              ref={maskRimEdgeRef}
+              in="blur"
+              type="matrix"
+              values={gooThreshold(GOO_RIM_THRESHOLDS[GOO_BLUR_REST][0])}
+              result="outer"
+            />
+            <feColorMatrix
+              ref={maskInnerEdgeRef}
+              in="blur"
+              type="matrix"
+              values={gooThreshold(GOO_RIM_THRESHOLDS[GOO_BLUR_REST][1])}
+              result="inner"
+            />
+            <feComposite in="outer" in2="inner" operator="out" result="rimOnly" />
+            <feFlood floodColor="#ffffff" result="white" />
+            <feComposite in="white" in2="rimOnly" operator="in" />
+          </filter>
+
+          <mask
+            id={rimMaskId}
+            maskUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width={GOO_WIDTH}
+            height={GOO_HEIGHT}
+          >
+            {/* The same blobs, drawn a second time through the rim filter —
+                a <use> instance, so the mask cannot drift from the picture:
+                every tween that moves a drop moves its mask with it. */}
+            <g filter={`url(#${rimOnlyId})`}>
+              <use href={`#${blobsId}`} />
+            </g>
+          </mask>
+
+          {/* The joint's paint: the touched row's colour at the seam, dying
+              out by OPACITY along each border — the rim's own colour simply
+              shows through where the light ends, so the walk out of a joint is
+              always clean hue over rim, never a muddy mix of the two. */}
+          {SEAM_LAYERS.map((layer) => (
+            <radialGradient
+              key={layer}
+              ref={(el) => {
+                seamGradientRefs.current[layer] = el;
+              }}
+              id={`${seamGradientId}-${layer}`}
+              gradientUnits="userSpaceOnUse"
+              cx={TRIGGER_CX}
+              cy={TRIGGER_CY}
+              r={SEAM_RADIUS}
+            >
+              {[
+                { offset: 0, alpha: 1 },
+                { offset: 55, alpha: 0.9 },
+                { offset: 100, alpha: 0 },
+              ].map(({ offset, alpha }, stop) => (
+                <stop
+                  key={offset}
+                  ref={(el) => {
+                    seamStopRefs.current[layer] = seamStopRefs.current[layer] ?? [];
+                    seamStopRefs.current[layer][stop] = el;
+                  }}
+                  offset={`${offset}%`}
+                  stopColor="var(--liquid-seam)"
+                  stopOpacity={alpha}
+                />
+              ))}
+            </radialGradient>
+          ))}
         </defs>
         <g filter={`url(#${gooId})`}>
-          <circle
-            ref={blobTriggerRef}
-            className={styles.blob}
-            cx={TRIGGER_CX}
-            cy={TRIGGER_CY}
-            r={BUTTON_SIZE / 2}
-          />
-          {GRAB_CHAIN.map((link) => (
+          <g id={blobsId}>
             <circle
-              key={link.follow}
-              ref={(el) => {
-                grabChainRefs.current[GRAB_CHAIN.indexOf(link)] = el;
-              }}
+              ref={blobTriggerRef}
               className={styles.blob}
               cx={TRIGGER_CX}
               cy={TRIGGER_CY}
-              r={11}
+              r={BUTTON_SIZE / 2}
             />
-          ))}
-          <path
-            ref={blobPanelRef}
-            className={styles.blob}
-            d={squirclePath(
-              TRIGGER_CX - PANEL_WIDTH / 2,
-              TRIGGER_Y - PANEL_GAP - PANEL_HEIGHT,
-              PANEL_WIDTH,
-              PANEL_HEIGHT,
-              PANEL_RADIUS,
-            )}
-          />
+            {GRAB_CHAIN.map((link) => (
+              <circle
+                key={link.follow}
+                ref={(el) => {
+                  grabChainRefs.current[GRAB_CHAIN.indexOf(link)] = el;
+                }}
+                className={styles.blob}
+                cx={TRIGGER_CX}
+                cy={TRIGGER_CY}
+                r={11}
+              />
+            ))}
+            <path
+              ref={blobPanelRef}
+              className={styles.blob}
+              d={squirclePath(PANEL_GOO_X, PANEL_GOO_Y, PANEL_WIDTH, PANEL_HEIGHT, PANEL_RADIUS)}
+            />
+          </g>
         </g>
+
+        {/* The hue rides the border itself: a full-canvas wash of the seam
+            gradient, cut down to the rim by the mask. Its opacity is the
+            engine's only output — where the joint is and how strong it is are
+            in the gradient's own center and radius. */}
+        {SEAM_LAYERS.map((layer) => (
+          <rect
+            key={layer}
+            ref={(el) => {
+              seamPaintRefs.current[layer] = el;
+            }}
+            className={styles.seam}
+            x="0"
+            y="0"
+            width={GOO_WIDTH}
+            height={GOO_HEIGHT}
+            fill={`url(#${seamGradientId}-${layer})`}
+            mask={`url(#${rimMaskId})`}
+          />
+        ))}
       </svg>
 
       {/* Layer 3: rows and hit areas above the liquid. */}
@@ -564,7 +1089,12 @@ export function LiquidAdd() {
         onPointerMove={handleGrabPointerMove}
         onPointerUp={releasePress}
         onPointerCancel={releasePress}
+        onPointerLeave={() => setHoveredRow(null)}
       >
+        {/* The hover travels UNDER the rows — one highlight for the list, not
+            a state painted on each row. */}
+        <RowHover index={hoveredRow} rowHeight={ROW_HEIGHT} inset={PANEL_PADDING} />
+
         {ITEMS.map((item, index) => (
           <button
             key={item.id}
@@ -572,12 +1102,33 @@ export function LiquidAdd() {
               itemRefs.current[index] = el;
             }}
             type="button"
-            role="menuitem"
+            role="menuitemcheckbox"
+            aria-checked={selected[index]}
+            data-selected={selected[index] ? "" : undefined}
             className={styles.item}
-            onClick={handleItemClick}
+            style={rowSelectionStyle(selected, index, rowHues)}
+            data-row-index={index}
+            onClick={() => handleItemClick(index)}
+            onPointerDown={handleItemPointerDown}
+            onPointerEnter={() => setHoveredRow(index)}
+            /* Enter alone is not enough: a pointer that never crossed a
+               boundary (it was already here, or it came back from a drag)
+               fires none. Setting the same index again is free — React
+               bails on an unchanged value. */
+            onPointerMove={() => setHoveredRow(index)}
           >
-            <item.Icon className={styles.itemIcon} />
-            <span>{item.label}</span>
+            {/* The content rides its own wrapper: the entry stagger animates
+                THIS, never the button — the selection wash lives on the
+                button and must stay one piece with its neighbours. */}
+            <span
+              ref={(el) => {
+                itemInnerRefs.current[index] = el;
+              }}
+              className={styles.itemInner}
+            >
+              <IconMorph shape={item.path} checked={selected[index]} className={styles.itemIcon} />
+              <span className={styles.itemLabel}>{item.label}</span>
+            </span>
           </button>
         ))}
       </div>

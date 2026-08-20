@@ -11,9 +11,37 @@
       so the glyphs fly above the liquid. */
 
 .anchor {
+  /* Every colour the dial wears, in one place: the light frame by default,
+     the dark frame under [data-theme="dark"]. Nothing else in this file names
+     a colour, so the two themes can never drift apart. */
   --liquid-surface: #ffffff;
   --liquid-rim: #dadada;
   --liquid-icon: #252731;
+  --liquid-icon-hover: #000000;
+  /* A breath of a tint — the hover only nudges the face off its resting
+     shade, it never reads as a new surface. */
+  --liquid-hover-tint: rgb(0 0 0 / 2.5%);
+  --liquid-shadow-y: 3px;
+  --liquid-shadow-blur: 6.25px;
+  --liquid-shadow-color: rgb(0 0 0 / 8%);
+  --liquid-tooltip-bg: var(--color-tooltip-bg);
+  --liquid-tooltip-text: var(--color-tooltip-text);
+  /* The seam's DEFAULT colour only — the first paint a joint wears for the
+     frame or two before the engine hands it the pair's own hue (each satellite
+     carries its own; see SATELLITES in the component). The gradient dies out
+     by opacity, so no fade colour lives here. */
+  --liquid-seam: #785dd6;
+
+  /* ONE shadow, written twice — and the two syntaxes do NOT agree on their
+     blur number. box-shadow's blur is 2σ; the blur in filter: drop-shadow() IS
+     σ. Handing both the Figma number gave the liquid a shadow twice as wide as
+     the resting buttons', so the moment the goo took the picture over the drop
+     bloomed a second, softer halo. The goo's blur is therefore HALF, and both
+     are composed here from the same three values so they cannot drift again. */
+  --liquid-shadow: 0 var(--liquid-shadow-y) var(--liquid-shadow-blur) var(--liquid-shadow-color);
+  --liquid-goo-shadow: drop-shadow(
+    0 var(--liquid-shadow-y) calc(var(--liquid-shadow-blur) / 2) var(--liquid-shadow-color)
+  );
 
   position: relative;
   width: 32px;
@@ -22,9 +50,45 @@
   -webkit-user-select: none;
 }
 
+/* Dark frame — Figma "Admin" 9691:1764. The rim there is a 6% white stroke and
+   the hover tint a white wash, but the goo draws its rim by flooding ONE flat
+   colour into the sliver between two contours: a translucent flood would tint
+   whatever the liquid happens to be flying over, and the crisp border under it
+   would show through doubled. So both wear the SOLVED solid — 6% white already
+   composited over the buttons' own #222528 — and the crisp and liquid pictures
+   stay the single border this family is built on. */
+.anchor[data-theme="dark"] {
+  /* The drops wear the stage's own grey (--color-viewport-bg's dark value):
+     no shadow, no fill of their own — on the dark frame a drop is nothing
+     but its border standing on the ground it lives on. */
+  --liquid-surface: #212326;
+  --liquid-rim: #2f3235;
+  --liquid-icon: #ffffff;
+  --liquid-icon-hover: #ffffff;
+  /* 2% white over #222528 lands on ~#272a2d — the faintest lift off the
+     resting face, a glow rather than a wash. */
+  --liquid-hover-tint: rgb(255 255 255 / 2%);
+  /* No shadow on the dark frame: a black shadow on a near-black stage only
+     muddied the ground under the drops. Both layers (crisp bodies and goo)
+     compose their shadow from this one var, so none here means none ever. */
+  --liquid-goo-shadow: none;
+  --liquid-tooltip-bg: #ffffff;
+  --liquid-tooltip-text: #0b0b0c;
+  /* Lifted for the dark frame — the file's own lighter violet. */
+  --liquid-seam: #8a68ff;
+}
+
+/* ONE silhouette shadow for the crisp picture — the same drop-shadow the goo
+   wears, on the container, so it shades the UNION of the drops. Per-body
+   box-shadows summed where two drops stood close (visibly darker pools
+   between neighbours), while the goo's single shadow never sums — so every
+   goo↔crisp swap made the shadow visibly deepen or thin around the joints.
+   With both layers shading the same silhouette through the same variable,
+   the swap is pixel-identical and the shadow never changes depth. */
 .bodies {
   position: absolute;
   inset: 0;
+  filter: var(--liquid-goo-shadow);
 }
 
 .triggerBody {
@@ -36,7 +100,6 @@
   border-radius: 50%;
   background: var(--liquid-surface);
   border: 1px solid var(--liquid-rim);
-  box-shadow: 0 3px 6.25px rgb(0 0 0 / 8%);
   will-change: transform;
 }
 
@@ -48,7 +111,6 @@
   border-radius: 50%;
   background: var(--liquid-surface);
   border: 1px solid var(--liquid-rim);
-  box-shadow: 0 3px 6.25px rgb(0 0 0 / 8%);
   will-change: transform;
 }
 
@@ -67,6 +129,29 @@
   z-index: 1;
   overflow: visible;
   pointer-events: none;
+}
+
+/* The seam wash. Opacity is the only thing animated on it — the gradient
+   underneath carries where and how wide. */
+/* Hidden until the engine lights it — and on the light frame the engine
+   never runs, so it stays hidden for good. Hidden, not merely transparent:
+   the mask that cuts this wash down to the rim runs the goo's blur a SECOND
+   time, and a browser is only guaranteed to skip that for something it is
+   not painting. */
+.seam {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+/* The light frame carries no joint colour at all. Taken out of the picture
+   here rather than by refusing to measure: the engine still reports every
+   contact — the glyphs and the voice live off those — it just has nothing
+   to paint on this stage. display, not visibility, because the engine writes
+   visibility itself. */
+.anchor:not([data-theme="dark"]) .seam {
+  display: none;
 }
 
 /* Every liquid shape: trigger circle, satellite circles, and the grab chain —
@@ -94,19 +179,74 @@
   border-radius: 50%;
   background: none;
   color: var(--liquid-icon);
+}
+
+/* The trigger's glyph is a PLUS while the fan is closed and an X once it is
+   open — the same path, spun 135°. Only the X is a PlayStation glyph, so
+   only the X wears the cross's blue-violet: a plus is "open this", it
+   belongs to no button on the pad, and colouring it would say the fan is
+   already showing. Gated on aria-expanded, which is the state itself — no
+   second flag to keep in step.
+
+   The hue arrives on the family's fast hover clock, the bloom a beat ahead
+   (a bloom spends most of its ramp invisible, so an equal clock reads as
+   arriving late). */
+.trigger {
   transition:
-    color 160ms var(--ease-out-strong),
+    color 120ms var(--ease-out-strong),
     background-color 160ms var(--ease-out-strong);
 }
 
+/* Closed — the plus keeps the surface's own ink. */
 .trigger:hover {
-  color: #000000;
-  background: rgb(0 0 0 / 4.5%);
+  color: var(--liquid-icon-hover);
+  background: var(--liquid-hover-tint);
+}
+
+/* Open — it IS the cross now. Dark frame only: the light frame carries no
+   PlayStation colour, so there the X hovers in the surface's own ink like
+   any other button.
+
+   And it holds that colour for the whole grab OF ITSELF — not for any grab
+   on the dial: a satellite being pulled is not the cross's business, and
+   lighting up for it said the X was involved in something it was not. While
+   the X is the body in hand, though, it stays lit for the whole gesture,
+   not just while the pointer is over the 32px disc. A drag leaves the button within a frame or two —
+   pointer capture keeps the gesture, but :hover is gone — so the hue used
+   to drop back to white the instant you started pulling and only return
+   when a merge lit it again. That white dip in the middle of a drag is the
+   blink. The cross is violet from the moment you touch it until you let go;
+   what the merge adds on top is the BLOOM. */
+.anchor[data-theme="dark"] .trigger[aria-expanded="true"]:hover,
+.anchor[data-theme="dark"][data-held="trigger"] .trigger[aria-expanded="true"],
+.anchor[data-theme="dark"] .trigger[data-merged] {
+  color: var(--liquid-x-hue);
 }
 
 .triggerIcon {
   display: flex;
   will-change: transform;
+  /* Transparent shadows at rest, so the glow interpolates from the first
+     frame rather than waiting for a `none` list to be matched up.
+
+     NO colour transition here, exactly as on the satellites' glyphs: the
+     colour is the BUTTON's, and the button already eases it. A transition
+     declared on the glyph as well makes it chase a value that is itself
+     moving — two 120ms ramps in series, so the X took roughly twice as long
+     as its neighbours to give its colour back. The glyph inherits; only the
+     bloom is its own, a touch ahead of the colour because a bloom spends
+     most of its ramp invisible and an equal clock reads as late. */
+  filter: drop-shadow(0 0 3px transparent) drop-shadow(0 0 8px transparent);
+  transition: filter 90ms var(--ease-out-strong);
+}
+
+/* Hover and MERGE wear the same light, from the same declaration — a merge
+   that lit differently from a hover read as a third state nobody asked for.
+   [data-merged] is written by the seam feedback (see the component). */
+.anchor[data-theme="dark"] .trigger[aria-expanded="true"]:hover .triggerIcon,
+.anchor[data-theme="dark"] .trigger[data-merged] .triggerIcon {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--liquid-x-hue) 88%, transparent))
+    drop-shadow(0 0 8px color-mix(in srgb, var(--liquid-x-hue) 45%, transparent));
 }
 
 /* Transparent hit areas riding the same tweens as their bodies and blobs —
@@ -124,14 +264,43 @@
   background: none;
   color: var(--liquid-icon);
   will-change: transform;
+  /* colour on the fast hover clock; filter's 200ms is the merge-neon's
+     breath (the engine writes it inline on the button). */
   transition:
-    color 160ms var(--ease-out-strong),
-    background-color 160ms var(--ease-out-strong);
+    color 120ms var(--ease-out-strong),
+    background-color 160ms var(--ease-out-strong),
+    filter 200ms var(--ease-out-strong);
+}
+
+/* On the DARK frame each satellite lights ITS OWN hue on hover — the pad's
+   language, same as the dropdowns' rows: the glyph catches colour and bloom,
+   the disc keeps the quiet neutral tint. The light frame carries no motif,
+   so there a satellite hovers in the surface's own ink, unglowing. The glow
+   lives on the svg, not the button — a filter on the button would
+   drop-shadow the hover disc itself. */
+.satellite svg {
+  filter: drop-shadow(0 0 3px transparent) drop-shadow(0 0 8px transparent);
+  transition: filter 90ms var(--ease-out-strong);
 }
 
 .satellite:hover {
-  color: #000000;
-  background: rgb(0 0 0 / 4.5%);
+  color: var(--liquid-icon-hover);
+  background: var(--liquid-hover-tint);
+}
+
+/* A merge lights a satellite exactly the way a hover does — one declaration
+   for both, so the two can never drift into different-looking states. The
+   glow is on the SVG, not the button: on the button it would drop-shadow the
+   hover disc itself and halo the whole 32px drop. */
+.anchor[data-theme="dark"] .satellite:hover,
+.anchor[data-theme="dark"] .satellite[data-merged] {
+  color: var(--sat-hue, var(--liquid-icon-hover));
+}
+
+.anchor[data-theme="dark"] .satellite:hover svg,
+.anchor[data-theme="dark"] .satellite[data-merged] svg {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sat-hue) 88%, transparent))
+    drop-shadow(0 0 8px color-mix(in srgb, var(--sat-hue) 45%, transparent));
 }
 
 /* Whenever the liquid owns the picture (open/close flight or a grab), the
@@ -144,7 +313,6 @@
 .anchor[data-liquid] .trigger {
   background: none;
 }
-
 /* Tooltip — the same pill, spring and authored exit as the avatar dropdown's
    "Click and hold": pops in on the ringing spring, shrinks away with the fade
    trailing the scale so the collapse is watched, not dissolved through. */
@@ -180,8 +348,8 @@
   display: block;
   padding: 4px 8px;
   border-radius: 33px;
-  background: var(--color-tooltip-bg);
-  color: var(--color-tooltip-text);
+  background: var(--liquid-tooltip-bg);
+  color: var(--liquid-tooltip-text);
   font-family: var(--font-family);
   font-size: var(--font-size-md);
   font-weight: 400;
@@ -204,6 +372,7 @@
 @media (prefers-reduced-motion: reduce) {
   .satellite,
   .trigger,
+  .triggerIcon,
   .tooltipAnchor,
   .tooltipHiding {
     transition: none;

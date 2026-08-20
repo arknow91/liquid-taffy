@@ -34,15 +34,12 @@ export const GRAB_MAX = 44;
    goo bridge unbroken all the way out. */
 export const GRAB_CHAIN = [
   { follow: 1, size: 0.85, thin: 0.06, lag: 0.16 },
-  { follow: 0.76, size: 0.62, thin: 0.2, lag: 0.19 },
-  { follow: 0.52, size: 0.66, thin: 0.18, lag: 0.22 },
-  { follow: 0.28, size: 0.82, thin: 0.1, lag: 0.25 },
+  { follow: 0.84, size: 0.72, thin: 0.16, lag: 0.18 },
+  { follow: 0.68, size: 0.65, thin: 0.19, lag: 0.2 },
+  { follow: 0.52, size: 0.64, thin: 0.19, lag: 0.22 },
+  { follow: 0.36, size: 0.7, thin: 0.14, lag: 0.24 },
+  { follow: 0.2, size: 0.8, thin: 0.08, lag: 0.26 },
 ] as const;
-
-/* The held blob (and its chain) wears the hover tint — rgb(0 0 0 / 4.5%) over
-   white, flattened. Fills ride the blur through the goo filter, so where a
-   tinted finger touches a white drop the two colors blend into a gradient. */
-export const LIQUID_FILL_HOVER = "#f3f3f3";
 
 /* "trigger" is the plus button; a number names one of the host's aux bodies —
    a satellite for the speed dial, the panel for the dropdowns. */
@@ -76,8 +73,6 @@ export interface StretchHost {
   triggerStretchBits(): Tweenable[];
   triggerIcon(): Tweenable;
   chain(): (SVGCircleElement | null)[];
-  /* The blobs that wear the hover tint while this target is held. */
-  grabbedBlobs(target: StretchTarget): (SVGElement | null)[];
   /* The pulled aux body's trio (goo blob, crisp body, hit area). */
   auxTrio(index: number): Tweenable[];
   /* Show the goo at the grab blur: alphas re-armed, thresholds matched,
@@ -89,6 +84,19 @@ export interface StretchHost {
   /* Hand the picture back to the crisp bodies once the release settles:
      goo fades, blur returns to rest, fills clear, data-liquid drops. */
   handoff(tl: gsap.core.Timeline, at: number): void;
+  /* True while the trigger is one of the family's own DROPS rather than the
+     button that opens them. The speed dial's trigger wears a plus while the
+     fan is closed — the opener, and the most liquid thing on the stage: it
+     squashes under the press, stretches along the pull and splats on the
+     way home. Open, that same glyph is the pad's CROSS, a button exactly
+     like the circle, square and triangle around it — and those are grabbed
+     as rigid drops that only lean. A cross that squashed while its
+     neighbours held their shape read as a different KIND of thing sitting
+     in the same fan.
+
+     Optional, defaulting to false: a plus-only trigger (the dropdowns')
+     never asks. */
+  triggerRigid?(): boolean;
 }
 
 export interface LiquidStretch {
@@ -125,6 +133,8 @@ export function createLiquidStretch(host: StretchHost): LiquidStretch {
   /* The release choreography lives on its own timeline: killing a component's
      open/close run from a mere release would freeze drops mid-flight. */
   let timeline: gsap.core.Timeline | null = null;
+
+  const isTriggerRigid = () => host.triggerRigid?.() ?? false;
 
   /* Pointer released or cancelled before a click could resolve: spring home.
      After a real pull the liquid finger snaps back into the rim and the
@@ -164,6 +174,18 @@ export function createLiquidStretch(host: StretchHost): LiquidStretch {
       /* A pulled aux body rides its position spring home — the ring IS the
          shake. (Scale wobble would orbit its remote transform origin.) */
       tl.to(host.auxTrio(target), { x: 0, y: 0, duration: 0.5, ease: SPRING, overwrite: "auto" }, 0);
+    } else if (isTriggerRigid()) {
+      /* The cross goes home exactly the way a satellite does: one position
+         spring, no splat — the ring IS the shake. Rotation is zeroed only on
+         the BODY pieces: the icon's rotation is its IDENTITY — 135° is what
+         makes the plus an X — and springing it to 0 turned the X back into a
+         plus at the end of every grab. */
+      tl.to(
+        host.triggerStretchBits(),
+        { x: 0, y: 0, rotation: 0, duration: 0.5, ease: SPRING, overwrite: "auto" },
+        0,
+      );
+      tl.to(host.triggerIcon(), { x: 0, y: 0, duration: 0.5, ease: SPRING, overwrite: "auto" }, 0);
     } else {
       const stretchBits = host.triggerStretchBits();
       /* Rotation rides the SAME spring home as the position. The circle
@@ -218,6 +240,12 @@ export function createLiquidStretch(host: StretchHost): LiquidStretch {
     stretchDist = 0;
     grabTarget = target;
     grabBase = { x: base.x, y: base.y };
+    /* A quick RE-GRAB races the previous release: its timeline is still
+       playing, and its scheduled handoff would fire mid-gesture — snapping
+       the crisp bodies on and the goo's shadow off in the middle of the new
+       grab. This gesture owns the picture now; the old landing is over. */
+    timeline?.kill();
+    timeline = null;
     /* Clear a stale suppression: if a previous stretch ended somewhere the
        browser never retargeted a click from, the flag would otherwise eat
        this gesture's click instead of that one's. */
@@ -225,14 +253,13 @@ export function createLiquidStretch(host: StretchHost): LiquidStretch {
 
     host.liquidOn(target);
     gsap.set(host.chain(), { x: base.x, y: base.y, scale: 0.4 });
-    [...host.grabbedBlobs(target), ...host.chain()].forEach((blob) =>
-      blob?.setAttribute("fill", LIQUID_FILL_HOVER),
-    );
     /* Capture can fail silently; a window-level backstop guarantees the
        release lands even if the pointer lets go far outside the button. */
     window.addEventListener("pointerup", release, { once: true });
 
-    if (target === "trigger") {
+    /* The press squash belongs to the PLUS. The cross is a pad button among
+       pad buttons, and none of them dents when you take hold of it. */
+    if (target === "trigger" && !isTriggerRigid()) {
       gsap.to(host.triggerBits(), { scale: 0.85, duration: 0.1, ease: OUT_STRONG, overwrite: "auto" });
     }
   };
@@ -287,6 +314,20 @@ export function createLiquidStretch(host: StretchHost): LiquidStretch {
       return;
     }
 
+    /* The cross leans and nothing more — the satellites' own rule (their
+       shape stays put; scale or rotation would orbit a remote origin), so
+       the four pad buttons all answer a pull the same way. */
+    if (isTriggerRigid()) {
+      gsap.to(host.triggerBits(), {
+        x: ux * pull * host.auxLean,
+        y: uy * pull * host.auxLean,
+        duration: 0.25,
+        ease: "power3.out",
+        overwrite: "auto",
+      });
+      return;
+    }
+
     /* The trigger leans into the pull (up to ~8px) and stretches a touch
        along it — the mass visibly follows the grabbed piece. */
     gsap.to(host.triggerStretchBits(), {
@@ -320,6 +361,17 @@ export function createLiquidStretch(host: StretchHost): LiquidStretch {
   const kill = () => {
     timeline?.kill();
     timeline = null;
+    /* And the GESTURE itself, not just its landing. A component can be taken
+       off the stage mid-drag — switch surfaces with a finger still down —
+       and the backstop below would otherwise sit on the window waiting for a
+       pointerup that then runs a release against a picture that no longer
+       exists. Nothing good comes of that, and the flags would keep a dead
+       instance believing it is still being held. */
+    pressed = false;
+    grabTarget = null;
+    stretchDist = 0;
+    suppressClick = false;
+    window.removeEventListener("pointerup", release);
   };
 
   return { beginGrab, pointerMove, release, consumeClick, kill };

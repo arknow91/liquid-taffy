@@ -33,3 +33,14 @@
   --line-height-sm: 14px;
   --line-height-md: 16px;
 }
+
+/* The dark stage — Figma "Admin" 9691:1764. Set on the viewport, so the frame
+   grey and the navigation ink flip together with the component standing on it;
+   the liquid surfaces keep carrying their own colours locally. */
+[data-theme="dark"] {
+  --color-viewport-bg: #212326;
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgb(255 255 255 / 56%);
+  --color-text-muted: rgb(255 255 255 / 24%);
+}

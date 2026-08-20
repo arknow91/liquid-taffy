@@ -9,16 +9,21 @@ import {
 import gsap from "gsap";
 import { CustomEase } from "gsap/CustomEase";
 
-import { CircleIcon, PlusIcon, SquareIcon, TriangleIcon } from "../LiquidMenu/icons";
+import { ICON_PATHS, PlusIcon } from "../LiquidMenu/icons";
 import { GOO_RIM_THRESHOLDS, gooThreshold, setGooBlur } from "../liquid/goo";
+import { SHAPE_HUES, motifHue, neonGlow } from "../liquid/hues";
 import { HOUSE_SPRING_POINTS, POP_SPRING_POINTS, springEase } from "../liquid/springs";
+import { IconMorph } from "../liquid/IconMorph";
+import { RowHover } from "../liquid/RowHover";
+import { rowSelectionStyle } from "../liquid/select";
+import { gooSfx } from "../liquid/sfx";
+import { SelectionBurst } from "../liquid/SelectionBurst";
 import { squirclePath } from "../liquid/squircle";
 import {
   GRAB_CHAIN,
   createLiquidStretch,
   prefersReducedMotion,
   type LiquidStretch,
-  type StretchTarget,
 } from "../liquid/stretch";
 import styles from "./LiquidMorph.module.css";
 
@@ -35,14 +40,14 @@ const BUTTON_SIZE = 32;
 
 /* The dropdown IN THE BUTTON'S PLACE: centered on it, bottom edges aligned. */
 const PANEL_WIDTH = 141;
-const PANEL_HEIGHT = 104; /* 2×7 padding + 3 rows × 30 */
+const PANEL_HEIGHT = 134; /* 2×7 padding + 4 rows × 30 */
 /* Button center in the panel's own coordinates — the panel pours out of it. */
 const PANEL_ORIGIN_X = PANEL_WIDTH / 2; /* 70.5 */
-const PANEL_ORIGIN_Y = PANEL_HEIGHT - BUTTON_SIZE / 2; /* 88 */
+const PANEL_ORIGIN_Y = PANEL_HEIGHT - BUTTON_SIZE / 2; /* 118 */
 
 /* Resting scale: the shrunk panel must hide inside the 16px-radius circle.
-   Farthest corner ≈ √(70.5² + 88²) ≈ 113px from the origin → 113 × 0.13 ≈ 15. */
-const PANEL_REST_SCALE = 0.13;
+   Farthest corner ≈ √(70.5² + 118²) ≈ 138px from the origin → 138 × 0.11 ≈ 15. */
+const PANEL_REST_SCALE = 0.11;
 
 /* Blur discipline. This variant is ONE mass throughout — the panel grows out
    of (and dives back into) the button it overlaps, so it never needs the big
@@ -69,15 +74,51 @@ const TRIGGER_Y = 204; /* button top edge */
 const TRIGGER_CX = TRIGGER_X + BUTTON_SIZE / 2;
 const TRIGGER_CY = TRIGGER_Y + BUTTON_SIZE / 2;
 
+/* The PlayStation four — circle, cross, triangle, square — each wearing its
+   button's hue (liquid/hues.ts). This
+   variant is ONE mass, so there is no seam to light: instead the neon
+   catches the row the pulled finger's head is standing over, live through
+   the grab. */
 const ITEMS = [
-  { id: "morph-circle", label: "Circle", Icon: CircleIcon },
-  { id: "morph-square", label: "Square", Icon: SquareIcon },
-  { id: "morph-triangle", label: "Triangle", Icon: TriangleIcon },
+  { id: "morph-circle", label: "Circle", path: ICON_PATHS.circle, hue: SHAPE_HUES.circle },
+  { id: "morph-cross", label: "Cross", path: ICON_PATHS.cross, hue: SHAPE_HUES.cross },
+  { id: "morph-triangle", label: "Triangle", path: ICON_PATHS.triangle, hue: SHAPE_HUES.triangle },
+  { id: "morph-square", label: "Square", path: ICON_PATHS.square, hue: SHAPE_HUES.square },
 ] as const;
 
 const PANEL_RADIUS = 16;
 
-export function LiquidMorph() {
+/* The open panel's rect in goo-canvas coordinates, and its row band — the
+   finger's head is measured against these. The panel only ever TRANSLATES
+   while a grab is live, and its lean tops out around 6px, so the resting
+   geometry is close enough to name the row without chasing the transform. */
+const PANEL_GOO_X = TRIGGER_CX - PANEL_WIDTH / 2;
+const PANEL_GOO_Y = TRIGGER_Y + BUTTON_SIZE - PANEL_HEIGHT;
+const PANEL_PADDING = 7;
+const ROW_HEIGHT = 30;
+
+/* Which row the head is standing over — or none: unlike the anchored
+   dropdown's seam (which lights the NEAREST row of a real joint), a head
+   outside the rows lights nothing, because here there is no joint to speak
+   of, only position. */
+function rowUnderHead(x: number, y: number): number | null {
+  if (x < PANEL_GOO_X + PANEL_PADDING || x > PANEL_GOO_X + PANEL_WIDTH - PANEL_PADDING) {
+    return null;
+  }
+  const index = Math.floor((y - (PANEL_GOO_Y + PANEL_PADDING)) / ROW_HEIGHT);
+  return index >= 0 && index < ITEMS.length ? index : null;
+}
+
+export type LiquidMorphTheme = "light" | "dark";
+
+export interface LiquidMorphProps {
+  /* The frame the button is standing on — light by default. Same contract as
+     the speed dial's: it only swaps the colour variables in the stylesheet;
+     every spring, blur and threshold is the same one. */
+  theme?: LiquidMorphTheme;
+}
+
+export function LiquidMorph({ theme = "light" }: LiquidMorphProps = {}) {
   const menuId = useId();
   const gooId = `liquid-morph-goo-${useId().replace(/:/g, "")}`;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -90,6 +131,12 @@ export function LiquidMorph() {
   const panelBodyRef = useRef<SVGSVGElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  /* The rows' CONTENT (icon + label), animated separately from the rows: the
+     entry stagger rides these, while the buttons — and the selection washes
+     drawn on them — stay put inside the panel and scale with it as ONE mass.
+     Staggering the buttons themselves tore a full-height selection run into
+     four pieces with gaps between them for the length of every bounce. */
+  const itemInnerRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const blurRef = useRef<SVGFEGaussianBlurElement>(null);
   const rimEdgeRef = useRef<SVGFEColorMatrixElement>(null);
   const innerEdgeRef = useRef<SVGFEColorMatrixElement>(null);
@@ -97,10 +144,30 @@ export function LiquidMorph() {
   const iconRef = useRef<HTMLSpanElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const stretchRef = useRef<LiquidStretch | null>(null);
+  /* The row-press squish, kept on a handle. It tweens the SAME property the
+     open and close runs do (the panel's scale) and rings for half a second,
+     so left loose it can still be writing while a toggle is trying to pour
+     or collapse — two owners, one property, and whichever ticks last wins
+     the frame. */
+  const pressTweenRef = useRef<gsap.core.Tween | null>(null);
   /* Mirrors isOpen for the stretch engine's host callbacks, which are created
      once and must not close over a stale render's state. */
   const isOpenRef = useRef(false);
+  /* Same reason: the voice asks which frame it is speaking in, and the host
+     callbacks outlive the render that made them. */
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const [isOpen, setIsOpen] = useState(false);
+  /* Which row's glyph is lit — so styles are written only on a change. */
+  const litRowRef = useRef<number | null>(null);
+  /* Multi-select: which rows are ticked. Persists across open/close — a
+     selection is a state, not a gesture. */
+  const [selected, setSelected] = useState<boolean[]>(() => ITEMS.map(() => false));
+  /* Which row the pointer is on — the travelling hover's only input. */
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  /* Each row's motif hue on the frame we are standing on — null on the
+     light frame, which carries no PlayStation colour. */
+  const rowHues = ITEMS.map((item) => motifHue(item.hue, theme));
 
   const getTriggerBits = useCallback(
     () => [blobTriggerRef.current, triggerBodyRef.current, iconRef.current],
@@ -124,15 +191,77 @@ export function LiquidMorph() {
     [],
   );
 
+  /* Exactly ONE shadow at any moment — the speed dial's rule. The goo casts
+     its own while it owns the picture; the crisp bodies carry theirs on their
+     container. At a handoff the bodies snap visible UNDER the still-opaque
+     goo, so for the goo's fade both would cast — a doubled shadow that pulses
+     dark. The goo's shadow switches off in the SAME frame the bodies snap on. */
+  const setGooShadow = useCallback((on: boolean) => {
+    if (gooRef.current) {
+      gooRef.current.style.filter = on ? "var(--liquid-goo-shadow)" : "none";
+    }
+  }, []);
+
   const liquidOn = useCallback(
     (blur: number) => {
+      setGooShadow(true);
       gsap.set(gooRef.current, { autoAlpha: 1 });
       gsap.set(bodiesRef.current, { autoAlpha: 0 });
       applyGooBlur(blur);
       rootRef.current?.setAttribute("data-liquid", "");
     },
-    [applyGooBlur],
+    [applyGooBlur, setGooShadow],
   );
+
+  /* The neon catch, cleared: a row lit under the finger lets go the moment
+     the picture is no longer the gesture's. */
+  const clearRowNeon = useCallback(() => {
+    litRowRef.current = null;
+    itemRefs.current.forEach((item) => {
+      if (item) {
+        item.style.color = "";
+        item.style.filter = "";
+      }
+    });
+  }, []);
+
+  /* The neon under the finger. Every tick of a live grab the head's position
+     is read off its own matrix (same trick as the seam engine's) and the row
+     it stands over catches its hue — glyph and label together, since a row IS
+     its label. Reassigned every render so the hues follow the theme; the
+     ticker calls through the ref. */
+  const neonTickFnRef = useRef<() => void>(() => {});
+  neonTickFnRef.current = () => {
+    let lit: number | null = null;
+    if (isOpenRef.current && rootRef.current?.hasAttribute("data-grab")) {
+      const head = grabChainRefs.current[0];
+      const matrix = head?.getCTM();
+      if (head && matrix) {
+        const cx = head.cx.baseVal.value;
+        const cy = head.cy.baseVal.value;
+        lit = rowUnderHead(
+          matrix.a * cx + matrix.c * cy + matrix.e,
+          matrix.b * cx + matrix.d * cy + matrix.f,
+        );
+      }
+    }
+
+    if (lit === litRowRef.current) {
+      return;
+    }
+    litRowRef.current = lit;
+    itemRefs.current.forEach((item, index) => {
+      if (!item) {
+        return;
+      }
+      /* No motif on the light frame: the pulled finger shows in the liquid
+         alone, and the rows keep their own ink. */
+      const hue = motifHue(ITEMS[index].hue, theme);
+      const on = hue !== null && index === lit;
+      item.style.color = on ? hue : "";
+      item.style.filter = on && hue ? neonGlow(hue) : "";
+    });
+  };
 
   useEffect(() => {
     gsap.set(getPanelTrio(), {
@@ -141,14 +270,19 @@ export function LiquidMorph() {
       transformOrigin: `${PANEL_ORIGIN_X}px ${PANEL_ORIGIN_Y}px`,
     });
     gsap.set([panelBodyRef.current, panelRef.current], { autoAlpha: 0 });
-    gsap.set(itemRefs.current, { autoAlpha: 0 });
+    gsap.set(itemInnerRefs.current, { autoAlpha: 0 });
     gsap.set(blobTriggerRef.current, { transformOrigin: "50% 50%" });
     gsap.set(grabChainRefs.current, { scale: 0, transformOrigin: "50% 50%" });
     gsap.set(gooRef.current, { autoAlpha: 0 });
     gsap.set(bodiesRef.current, { autoAlpha: 1 });
 
+    const tick = () => neonTickFnRef.current();
+    gsap.ticker.add(tick);
+
     return () => {
+      gsap.ticker.remove(tick);
       timelineRef.current?.kill();
+      pressTweenRef.current?.kill();
       stretchRef.current?.kill();
     };
   }, [getPanelTrio]);
@@ -162,16 +296,20 @@ export function LiquidMorph() {
         y: 0,
       });
       gsap.set([panelBodyRef.current, panelRef.current], { autoAlpha: open ? 1 : 0 });
+      panelRef.current?.removeAttribute("data-wash");
+      gsap.set(panelRef.current, { "--sel-alpha": 1 });
       gsap.set(blobPanelRef.current, { autoAlpha: 1 });
-      gsap.set(itemRefs.current, { autoAlpha: open ? 1 : 0, y: 0 });
+      gsap.set(itemInnerRefs.current, { autoAlpha: open ? 1 : 0, y: 0 });
       gsap.set(getTriggerBits(), { scale: 1, x: 0, y: 0 });
       gsap.set(triggerBodyRef.current, { autoAlpha: open ? 0 : 1 });
       gsap.set(iconRef.current, { autoAlpha: open ? 0 : 1, filter: "blur(0px)" });
       gsap.set(gooRef.current, { autoAlpha: 0 });
       gsap.set(bodiesRef.current, { autoAlpha: 1 });
+      clearRowNeon();
       rootRef.current?.removeAttribute("data-liquid");
+      rootRef.current?.removeAttribute("data-grab");
     },
-    [getPanelTrio, getTriggerBits],
+    [clearRowNeon, getPanelTrio, getTriggerBits],
   );
 
   const clearInlineFills = useCallback(() => {
@@ -192,12 +330,57 @@ export function LiquidMorph() {
       triggerStretchBits: () => [blobTriggerRef.current, triggerBodyRef.current],
       triggerIcon: () => iconRef.current,
       chain: () => grabChainRefs.current,
-      grabbedBlobs: (target: StretchTarget) => [
-        target === "trigger" ? blobTriggerRef.current : blobPanelRef.current,
-      ],
       auxTrio: () => getPanelTrio(),
       liquidOn: (target) => {
         liquidOn(GOO_BLUR_GRAB);
+        /* data-grab gates the neon ticker: this light is a gesture's
+           feedback, not a state the component wears at rest. */
+        rootRef.current?.setAttribute("data-grab", "");
+        gooSfx.play("grab", { frame: themeRef.current });
+
+        /* A grab that lands MID-FLIGHT takes the picture over: the open/close
+           run would otherwise hand the picture back to the crisp bodies a few
+           hundred milliseconds into the gesture and take the liquid with it.
+           Killed, then walked to wherever it was heading, so nothing is
+           stranded half-open. */
+        if (timelineRef.current?.isActive()) {
+          timelineRef.current.kill();
+          const settled = isOpenRef.current;
+          /* ON the component's own timeline, not as loose tweens. openMenu and
+             closeMenu begin by killing exactly this reference; tweens started
+             outside it survive that kill and keep writing toward the state the
+             interrupted run was heading for — which is how a click that
+             reopened mid-close ended with the panel set visible and then
+             dragged back to nothing a tenth of a second later. */
+          const settle = gsap.timeline();
+          timelineRef.current = settle;
+          settle.to(
+            getPanelTrio(),
+            {
+              scale: settled ? 1 : PANEL_REST_SCALE,
+              rotation: settled ? 0 : -2,
+              duration: 0.16,
+              ease: OUT_STRONG,
+              overwrite: "auto",
+            },
+            0,
+          );
+          settle.to(
+            [panelBodyRef.current, panelRef.current],
+            { autoAlpha: settled ? 1 : 0, duration: 0.12, ease: OUT_STRONG, overwrite: "auto" },
+            0,
+          );
+          settle.to(
+            itemInnerRefs.current,
+            { autoAlpha: settled ? 1 : 0, y: 0, duration: 0.12, ease: OUT_STRONG, overwrite: "auto" },
+            0,
+          );
+          settle.to(
+            [iconRef.current, triggerBodyRef.current],
+            { autoAlpha: settled ? 0 : 1, duration: 0.14, ease: OUT_STRONG, overwrite: "auto" },
+            0,
+          );
+        }
         /* The shrunk panel parks INSIDE the circle while the menu is closed —
            and it must sit the grab out: it cannot ride the trigger's lean, so
            left in the goo it pokes out of the moving silhouette as a hump.
@@ -209,13 +392,22 @@ export function LiquidMorph() {
         });
       },
       handoff: (tl, at) => {
+        gooSfx.play("release", { frame: themeRef.current });
+        /* The crisp bodies SNAP on underneath the still-opaque goo — the two
+           pictures are identical, so nothing changes on screen — and only the
+           goo fades. The goo's shadow hands over to the bodies' in the same
+           frame, so the shadow never doubles during the fade. */
+        tl.set(bodiesRef.current, { autoAlpha: 1 }, at);
+        tl.call(() => setGooShadow(false), undefined, at);
         tl.to(gooRef.current, { autoAlpha: 0, duration: 0.15, ease: "power1.out" }, at);
-        tl.to(bodiesRef.current, { autoAlpha: 1, duration: 0.15, ease: "power1.out" }, at);
         applyGooBlur(GOO_BLUR_REST, tl, at + 0.16);
+        tl.call(() => setGooShadow(true), undefined, at + 0.16);
         tl.call(
           () => {
             rootRef.current?.removeAttribute("data-liquid");
+            rootRef.current?.removeAttribute("data-grab");
             clearInlineFills();
+            clearRowNeon();
           },
           undefined,
           at + 0.15,
@@ -225,8 +417,56 @@ export function LiquidMorph() {
   }
   const stretch = stretchRef.current;
 
+  /* A press on a row is felt by the WHOLE dropdown: the liquid mass gives a
+     touch — sinking toward the button's spot it poured out of — and springs
+     back to its own shape the moment the finger lets go. Crisp transforms,
+     no goo: the deformation is a couple of percent, and the border under it
+     never changes. */
+  const pressPanel = useCallback(() => {
+    if (prefersReducedMotion()) {
+      return;
+    }
+    pressTweenRef.current?.kill();
+    pressTweenRef.current = gsap.to(getPanelTrio(), {
+      scaleX: 0.985,
+      scaleY: 0.96,
+      duration: 0.12,
+      ease: OUT_STRONG,
+      overwrite: "auto",
+    });
+  }, [getPanelTrio]);
+
+  const releasePanelPress = useCallback(() => {
+    if (prefersReducedMotion()) {
+      return;
+    }
+    pressTweenRef.current?.kill();
+    pressTweenRef.current = gsap.to(getPanelTrio(), {
+      scaleX: 1,
+      scaleY: 1,
+      duration: 0.55,
+      ease: SPRING,
+      overwrite: "auto",
+    });
+  }, [getPanelTrio]);
+
+  const handleItemPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      pressPanel();
+      /* The window backstop, not the row: the release must land wherever the
+         pointer lets go, even far outside the button. */
+      window.addEventListener("pointerup", releasePanelPress, { once: true });
+      window.addEventListener("pointercancel", releasePanelPress, { once: true });
+    },
+    [pressPanel, releasePanelPress],
+  );
+
   const openMenu = useCallback(() => {
     timelineRef.current?.kill();
+    pressTweenRef.current?.kill();
     stretch.kill();
     isOpenRef.current = true;
     setIsOpen(true);
@@ -237,12 +477,24 @@ export function LiquidMorph() {
     }
 
     clearInlineFills();
+    clearRowNeon();
+    gooSfx.play("open", { frame: theme });
     liquidOn(GOO_BLUR_ACTIVE);
+    rootRef.current?.removeAttribute("data-grab");
     const triggerBits = getTriggerBits();
     const tl = gsap.timeline();
     timelineRef.current = tl;
 
     tl.set([panelBodyRef.current, panelRef.current], { autoAlpha: 1 }, 0);
+    /* A run that was already ticked waits for its panel to ARRIVE. Lighting
+       it from the first frame means the wash rides the whole pour — stretched
+       and skewed with the shape it is painted on — and the panel appears to
+       open already-used. It comes up once the shape has landed, so what you
+       see is the dropdown, and then what is in it. */
+    tl.call(() => panelRef.current?.setAttribute("data-wash", ""), undefined, 0);
+    tl.set(panelRef.current, { "--sel-alpha": 0 }, 0);
+    tl.to(panelRef.current, { "--sel-alpha": 1, duration: 0.22, ease: "power2.out" }, 0.22);
+    tl.call(() => panelRef.current?.removeAttribute("data-wash"), undefined, 0.46);
     /* Re-arm the panel blob a closed-state grab may have hidden. */
     tl.set(blobPanelRef.current, { autoAlpha: 1 }, 0);
     tl.set(getPanelTrio(), { x: 0, y: 0 }, 0);
@@ -281,9 +533,17 @@ export function LiquidMorph() {
     tl.to(trio, { scaleX: 1, duration: 0.32, ease: POP }, 0.2);
 
     /* Rows condense bottom-up — the direction the panel grew. */
-    tl.fromTo(
-      itemRefs.current,
-      { autoAlpha: 0, y: 10 },
+    /* The rows RISE only when they are actually away. A hard fromTo blanks
+       them first, and on a reopen that interrupts a close — the rows still
+       half on screen — that reads as the panel opening EMPTY and standing
+       there until the entry beat comes round. Cold open: they are at nothing
+       anyway, so the authored rise is unchanged. Warm: they simply finish
+       coming up from wherever the interrupted close left them. */
+    if (Number(gsap.getProperty(itemInnerRefs.current[0], "opacity")) < 0.05) {
+      tl.set(itemInnerRefs.current, { autoAlpha: 0, y: 10 }, 0);
+    }
+    tl.to(
+      itemInnerRefs.current,
       {
         autoAlpha: 1,
         y: 0,
@@ -298,15 +558,20 @@ export function LiquidMorph() {
        shadow would peek below the panel's bottom edge). */
     tl.set(triggerBodyRef.current, { autoAlpha: 0 }, 0.34);
 
-    /* Handoff at full blur, once the pour has mostly rung itself out. */
+    /* Handoff at full blur, once the pour has mostly rung itself out. The
+       bodies snap on UNDER the still-opaque goo; the shadow changes hands in
+       the same frame (see setGooShadow). */
+    tl.set(bodiesRef.current, { autoAlpha: 1 }, 0.5);
+    tl.call(() => setGooShadow(false), undefined, 0.5);
     tl.to(gooRef.current, { autoAlpha: 0, duration: 0.14, ease: "power1.out" }, 0.5);
-    tl.to(bodiesRef.current, { autoAlpha: 1, duration: 0.14, ease: "power1.out" }, 0.5);
     applyGooBlur(GOO_BLUR_REST, tl, 0.66);
+    tl.call(() => setGooShadow(true), undefined, 0.66);
     tl.call(() => rootRef.current?.removeAttribute("data-liquid"), undefined, 0.65);
-  }, [applyGooBlur, clearInlineFills, getPanelTrio, getTriggerBits, liquidOn, setStaticState, stretch]);
+  }, [applyGooBlur, clearInlineFills, clearRowNeon, getPanelTrio, getTriggerBits, liquidOn, setGooShadow, setStaticState, stretch]);
 
   const closeMenu = useCallback(() => {
     timelineRef.current?.kill();
+    pressTweenRef.current?.kill();
     stretch.kill();
     isOpenRef.current = false;
     setIsOpen(false);
@@ -317,7 +582,10 @@ export function LiquidMorph() {
     }
 
     clearInlineFills();
+    clearRowNeon();
+    gooSfx.play("close", { frame: theme });
     liquidOn(GOO_BLUR_ACTIVE);
+    rootRef.current?.removeAttribute("data-grab");
     const triggerBits = getTriggerBits();
     const tl = gsap.timeline();
     timelineRef.current = tl;
@@ -325,6 +593,10 @@ export function LiquidMorph() {
     tl.set(triggerBodyRef.current, { autoAlpha: 1 }, 0);
     /* Re-arm the panel blob a closed-state grab may have hidden. */
     tl.set(blobPanelRef.current, { autoAlpha: 1 }, 0);
+    /* The selection wash goes out FIRST — the panel must be plain before it
+       folds back into the circle. */
+    tl.call(() => panelRef.current?.setAttribute("data-wash", ""), undefined, 0);
+    tl.to(panelRef.current, { "--sel-alpha": 0, duration: 0.11, ease: "power2.in" }, 0);
     tl.to(
       grabChainRefs.current,
       { x: 0, y: 0, scale: 0, duration: 0.1, ease: OUT_STRONG, overwrite: "auto" },
@@ -342,7 +614,7 @@ export function LiquidMorph() {
     /* The rows dissolve only once the dive is visibly under way — during the
        wind-up they ride the gathering panel, which is what sells it. */
     tl.to(
-      itemRefs.current,
+      itemInnerRefs.current,
       { autoAlpha: 0, y: 4, duration: 0.06, ease: "power1.in", stagger: 0.005 },
       0.05,
     );
@@ -374,11 +646,13 @@ export function LiquidMorph() {
       0.26,
     );
 
+    tl.set(bodiesRef.current, { autoAlpha: 1 }, 0.34);
+    tl.call(() => setGooShadow(false), undefined, 0.34);
     tl.to(gooRef.current, { autoAlpha: 0, duration: 0.12, ease: "power1.out" }, 0.34);
-    tl.to(bodiesRef.current, { autoAlpha: 1, duration: 0.12, ease: "power1.out" }, 0.34);
     applyGooBlur(GOO_BLUR_REST, tl, 0.47);
+    tl.call(() => setGooShadow(true), undefined, 0.47);
     tl.call(() => rootRef.current?.removeAttribute("data-liquid"), undefined, 0.46);
-  }, [applyGooBlur, clearInlineFills, getPanelTrio, getTriggerBits, liquidOn, setStaticState, stretch]);
+  }, [applyGooBlur, clearInlineFills, clearRowNeon, getPanelTrio, getTriggerBits, liquidOn, setGooShadow, setStaticState, stretch]);
 
   /* The gesture itself lives in the shared engine — these are just the wires
      from React's pointer events into it. */
@@ -391,10 +665,18 @@ export function LiquidMorph() {
     [stretch],
   );
 
-  /* Grabbing the panel: same sponge, measured from the grab point itself. */
+  /* Grabbing the panel: same sponge, measured from the grab point itself.
+     But NOT from a row — a press there is a selection gesture: the pointer
+     capture a grab takes would retarget the click to the panel and the row
+     would never hear it (which is exactly what made rows feel dead: press,
+     a slight lean, release, nothing). Rows press; the panel's own padding
+     grabs. */
   const handlePanelPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!isOpen) {
+        return;
+      }
+      if ((event.target as Element).closest('[role="menuitemcheckbox"]')) {
         return;
       }
       const anchorRect = rootRef.current?.getBoundingClientRect();
@@ -423,12 +705,36 @@ export function LiquidMorph() {
     }
   }, [isOpen, openMenu, stretch]);
 
-  const handleItemClick = useCallback(() => {
-    if (stretch.consumeClick()) {
+  /* A row click TOGGLES its tick — the menu stays up: multi-select means
+     the conversation is not over after one answer. Outside click and Escape
+     still close. */
+  const handleItemClick = useCallback(
+    (index: number) => {
+      if (stretch.consumeClick()) {
+        return;
+      }
+      gooSfx.play("tick", { frame: theme });
+      setSelected((prev) => prev.map((on, at) => (at === index ? !on : on)));
+    },
+    [stretch],
+  );
+
+  /* A panel can open UNDER a cursor that never moves — no enter event is
+     ever fired, so the travelling pill would sit dark under a row whose
+     glyph is already lit by CSS :hover. The DOM knows who is hovered; ask
+     it once, the moment the rows exist. */
+  useEffect(() => {
+    if (!isOpen) {
+      setHoveredRow(null);
       return;
     }
-    closeMenu();
-  }, [closeMenu, stretch]);
+    const row = panelRef.current?.querySelector<HTMLElement>(
+      '[role="menuitemcheckbox"]:hover',
+    );
+    if (row?.dataset.rowIndex) {
+      setHoveredRow(Number(row.dataset.rowIndex));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -458,7 +764,22 @@ export function LiquidMorph() {
   }, [closeMenu, isOpen]);
 
   return (
-    <div ref={rootRef} className={styles.anchor}>
+    <div ref={rootRef} className={styles.anchor} data-theme={theme}>
+      {/* Layer 0: the full-set burst — painted BEFORE every body, so its
+          glyph pieces fly BEHIND the dropdown: the panel itself is the
+          curtain they leap from and dive back behind. */}
+      <SelectionBurst
+        active={selected.every(Boolean)}
+        open={isOpen}
+        theme={theme}
+        panel={{
+          left: -(PANEL_WIDTH - BUTTON_SIZE) / 2,
+          bottom: 0,
+          width: PANEL_WIDTH,
+          height: PANEL_HEIGHT,
+        }}
+      />
+
       {/* Layer 1: crisp bodies — the resting picture. */}
       <div ref={bodiesRef} className={styles.bodies} aria-hidden="true">
         <div ref={triggerBodyRef} className={styles.triggerBody} />
@@ -484,7 +805,7 @@ export function LiquidMorph() {
         width={GOO_WIDTH}
         height={GOO_HEIGHT}
         viewBox={`0 0 ${GOO_WIDTH} ${GOO_HEIGHT}`}
-        style={{ filter: "drop-shadow(0 3px 6.25px rgba(0, 0, 0, 0.08))" }}
+        style={{ filter: "var(--liquid-goo-shadow)" }}
         aria-hidden="true"
         focusable="false"
       >
@@ -537,7 +858,11 @@ export function LiquidMorph() {
               values={gooThreshold(GOO_RIM_THRESHOLDS[GOO_BLUR_REST][1])}
               result="inner"
             />
-            <feFlood floodColor="#dadada" result="rimColor" />
+            {/* The rim's colour is the theme's, read off the anchor: the
+                flood has to be the SAME solid the crisp CSS border wears, or
+                the two pictures the component crossfades between would not
+                match. */}
+            <feFlood style={{ floodColor: "var(--liquid-rim)" }} result="rimColor" />
             <feComposite in="rimColor" in2="goo" operator="in" result="rimFull" />
             <feMerge>
               <feMergeNode in="rimFull" />
@@ -568,13 +893,7 @@ export function LiquidMorph() {
           <path
             ref={blobPanelRef}
             className={styles.blob}
-            d={squirclePath(
-              TRIGGER_CX - PANEL_WIDTH / 2,
-              TRIGGER_Y + BUTTON_SIZE - PANEL_HEIGHT,
-              PANEL_WIDTH,
-              PANEL_HEIGHT,
-              PANEL_RADIUS,
-            )}
+            d={squirclePath(PANEL_GOO_X, PANEL_GOO_Y, PANEL_WIDTH, PANEL_HEIGHT, PANEL_RADIUS)}
           />
         </g>
       </svg>
@@ -591,7 +910,12 @@ export function LiquidMorph() {
         onPointerMove={handleGrabPointerMove}
         onPointerUp={releasePress}
         onPointerCancel={releasePress}
+        onPointerLeave={() => setHoveredRow(null)}
       >
+        {/* The hover travels UNDER the rows — one highlight for the list, not
+            a state painted on each row. */}
+        <RowHover index={hoveredRow} rowHeight={ROW_HEIGHT} inset={PANEL_PADDING} />
+
         {ITEMS.map((item, index) => (
           <button
             key={item.id}
@@ -599,12 +923,33 @@ export function LiquidMorph() {
               itemRefs.current[index] = el;
             }}
             type="button"
-            role="menuitem"
+            role="menuitemcheckbox"
+            aria-checked={selected[index]}
+            data-selected={selected[index] ? "" : undefined}
             className={styles.item}
-            onClick={handleItemClick}
+            style={rowSelectionStyle(selected, index, rowHues)}
+            data-row-index={index}
+            onClick={() => handleItemClick(index)}
+            onPointerDown={handleItemPointerDown}
+            onPointerEnter={() => setHoveredRow(index)}
+            /* Enter alone is not enough: a pointer that never crossed a
+               boundary (it was already here, or it came back from a drag)
+               fires none. Setting the same index again is free — React
+               bails on an unchanged value. */
+            onPointerMove={() => setHoveredRow(index)}
           >
-            <item.Icon className={styles.itemIcon} />
-            <span>{item.label}</span>
+            {/* The content rides its own wrapper: the entry stagger animates
+                THIS, never the button — the selection wash lives on the
+                button and must stay one piece with its neighbours. */}
+            <span
+              ref={(el) => {
+                itemInnerRefs.current[index] = el;
+              }}
+              className={styles.itemInner}
+            >
+              <IconMorph shape={item.path} checked={selected[index]} className={styles.itemIcon} />
+              <span className={styles.itemLabel}>{item.label}</span>
+            </span>
           </button>
         ))}
       </div>
